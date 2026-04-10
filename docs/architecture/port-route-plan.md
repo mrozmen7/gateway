@@ -21,6 +21,9 @@ In a microservice system, two things must be clear very early:
 | `payment-service` | `8085` | payment boundary |
 | `audit-service` | `8086` | audit boundary |
 
+Local demo note:
+In this workspace, `8080` may already be occupied by another desktop process. For live testing, the gateway can be started on `8090` with a runtime override while keeping the architectural default as `8080`.
+
 ## Route Plan
 
 | External Path | Downstream Service | Why |

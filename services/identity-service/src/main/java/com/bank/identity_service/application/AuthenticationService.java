@@ -17,9 +17,9 @@ public class AuthenticationService {
     public AuthenticationService(PasswordEncoder passwordEncoder) {
         this.passwordEncoder = passwordEncoder;
         this.users = Map.of(
-                "lena.meyer", new BankUser("cust-1001", "lena.meyer", passwordEncoder.encode("SecurePass123!"), "CUSTOMER", "Lena Meyer"),
-                "marc.steiner", new BankUser("ops-2001", "marc.steiner", passwordEncoder.encode("OpsPass123!"), "OPS", "Marc Steiner"),
-                "audrey.keller", new BankUser("audit-3001", "audrey.keller", passwordEncoder.encode("AuditPass123!"), "AUDITOR", "Audrey Keller")
+                "lena.meyer", new BankUser("cust-1001", "lena.meyer", passwordEncoder.encode("SecurePass123"), "CUSTOMER", "Lena Meyer"),
+                "marc.steiner", new BankUser("ops-2001", "marc.steiner", passwordEncoder.encode("OpsPass123"), "OPS", "Marc Steiner"),
+                "audrey.keller", new BankUser("audit-3001", "audrey.keller", passwordEncoder.encode("AuditPass123"), "AUDITOR", "Audrey Keller")
         );
     }
 

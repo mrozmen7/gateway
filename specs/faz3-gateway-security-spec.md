@@ -20,10 +20,16 @@ Turn the Phase 2 project skeleton into the first working runtime shape of the ba
 - [x] gateway has path-based routes for all core services
 - [x] `identity-service` exposes `POST /api/v1/auth/login`
 - [x] `identity-service` can issue signed access tokens
-- [x] gateway protects all non-auth API paths
+- [x] gateway validates presented bearer tokens and attaches correlation IDs
 - [x] `account-service` exposes protected account endpoints
 - [x] correlation IDs are attached at the gateway
 - [x] route and port documentation exists
+
+## Validation Notes
+
+- `POST /api/v1/auth/login` works through `api-gateway`
+- `GET /api/v1/accounts/me` works through `api-gateway` when a valid bearer token is provided
+- Swagger/OpenAPI is reachable on `identity-service` and `account-service`
 
 ## Out of Scope
 

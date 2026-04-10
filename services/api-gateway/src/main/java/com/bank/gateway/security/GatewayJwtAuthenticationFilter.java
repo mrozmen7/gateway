@@ -16,7 +16,6 @@ import java.util.List;
 
 @Component
 public class GatewayJwtAuthenticationFilter extends OncePerRequestFilter {
-
     private final GatewayJwtTokenValidator tokenValidator;
 
     public GatewayJwtAuthenticationFilter(GatewayJwtTokenValidator tokenValidator) {
