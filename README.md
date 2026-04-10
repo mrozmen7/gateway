@@ -32,16 +32,17 @@ This project exists to teach:
 
 ## Current Phase
 
-We are in `Phase 2: Foundation Architecture and Project Skeleton`.
+We are in `Phase 3: API Gateway and Security Foundation`.
 
 At this stage we are:
 
-- creating the service skeletons
-- setting up the repository structure
-- documenting architecture and security rules
-- preparing for local infrastructure and service configuration
+- assigning service ports
+- turning the gateway into the system entry point
+- introducing login and token issuance
+- protecting the first business endpoint through the gateway
+- documenting the runtime flow for the first secure banking calls
 
-We are not yet implementing full business logic.
+We are not yet implementing full business logic or persistent storage.
 
 ## Documentation Map
 
@@ -49,6 +50,7 @@ This repository follows a documentation-first structure inspired by production-s
 
 - architecture overview: [docs/architecture/system-overview.md](/Users/yvz.o/Desktop/projects/Geteway_Pattern/docs/architecture/system-overview.md)
 - detailed system design: [docs/architecture/system-design.md](/Users/yvz.o/Desktop/projects/Geteway_Pattern/docs/architecture/system-design.md)
+- port and route plan: [docs/architecture/port-route-plan.md](/Users/yvz.o/Desktop/projects/Geteway_Pattern/docs/architecture/port-route-plan.md)
 - failure scenarios: [docs/architecture/failure-scenarios.md](/Users/yvz.o/Desktop/projects/Geteway_Pattern/docs/architecture/failure-scenarios.md)
 - service catalog: [docs/architecture/service-catalog.md](/Users/yvz.o/Desktop/projects/Geteway_Pattern/docs/architecture/service-catalog.md)
 - security foundation: [docs/security/security-foundation.md](/Users/yvz.o/Desktop/projects/Geteway_Pattern/docs/security/security-foundation.md)
