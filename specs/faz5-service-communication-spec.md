@@ -19,6 +19,7 @@ Turn the Phase 4 business APIs into a more realistic banking runtime by adding s
 ## Acceptance Criteria
 
 - [x] `account-service` exposes `GET /internal/accounts/{accountId}/verification`
+- [x] `account-service` exposes `POST /api/v1/accounts` for authenticated local test account creation
 - [x] `customer-service` exposes `GET /internal/customers/{username}/eligibility`
 - [x] `audit-service` exposes `POST /internal/audit/events`
 - [x] all three internal APIs require `X-Internal-Api-Key`
@@ -35,6 +36,7 @@ Turn the Phase 4 business APIs into a more realistic banking runtime by adding s
 - verified login through `api-gateway`
 - verified transfer creation through `transaction-service`
 - verified payment creation through `payment-service`
+- verified freshly created accounts can be used as new source accounts for transfers
 - verified both operations append audit events through `audit-service`
 - verified `transactions/me` and `payments/me` include the new records
 

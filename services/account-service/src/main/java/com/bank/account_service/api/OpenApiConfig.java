@@ -23,7 +23,7 @@ public class OpenApiConfig {
                                 .type(SecurityScheme.Type.HTTP)
                                 .scheme("bearer")
                                 .bearerFormat("JWT")
-                                .description("Use the JWT access token returned by the identity-service login endpoint.")))
+                                .description("Use the JWT access token returned by the identity-service login endpoint. In Swagger UI, click Authorize and paste only the raw token value.")))
                 .addSecurityItem(new SecurityRequirement().addList("bearerAuth"));
     }
 }

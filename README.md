@@ -105,6 +105,7 @@ Responsibilities:
 - bank accounts
 - balances
 - account status
+- self-service account creation for local learning flows
 
 ### `transaction-service`
 Transaction ledger boundary.

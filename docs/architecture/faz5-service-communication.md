@@ -11,6 +11,7 @@ Phase 5 goes one level deeper:
 - `transaction-service` now calls downstream services before creating a transfer
 - `payment-service` now calls downstream services before creating a payment
 - `audit-service` now accepts internal audit writes from other services
+- `account-service` now lets the authenticated user create additional test accounts for local training
 
 ## Main Architectural Lesson
 
@@ -99,3 +100,5 @@ A backend-only API meant for service-to-service use, not for direct public clien
 This is the first phase where the platform behaves like a distributed banking system instead of a set of isolated APIs.
 
 That is a major milestone because most production complexity in microservices comes from the space between services, not only from the code inside each service.
+
+It also gives us a better teaching setup: we are no longer limited to only seeded accounts, so we can create fresh accounts in Swagger and verify how downstream ownership checks behave in later transfer exercises.
