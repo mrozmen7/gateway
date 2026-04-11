@@ -26,6 +26,34 @@ public class CustomerDirectory {
                     "VERIFIED",
                     "STANDARD"
             ),
+            "yavuz", new CustomerProfile(
+                    "cust-1002",
+                    "yavuz",
+                    "Yavuz Ozmen",
+                    "MASS_AFFLUENT",
+                    "CH",
+                    "tr-CH",
+                    "yavuz@alpbank.ch",
+                    "+41 79 555 40 02",
+                    "2022-02-14",
+                    "LOW",
+                    "VERIFIED",
+                    "STANDARD"
+            ),
+            "fatih", new CustomerProfile(
+                    "cust-1003",
+                    "fatih",
+                    "Fatih Demir",
+                    "MASS_MARKET",
+                    "CH",
+                    "tr-CH",
+                    "fatih@alpbank.ch",
+                    "+41 79 555 40 03",
+                    "2023-09-01",
+                    "LOW",
+                    "VERIFIED",
+                    "STANDARD"
+            ),
             "marc.steiner", new CustomerProfile(
                     "ops-2001",
                     "marc.steiner",
