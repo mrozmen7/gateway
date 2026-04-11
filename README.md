@@ -32,17 +32,20 @@ This project exists to teach:
 
 ## Current Phase
 
-We are in `Phase 3: API Gateway and Security Foundation`.
+We are in `Phase 4: Core Business Flows`.
 
 At this stage we are:
 
-- assigning service ports
-- turning the gateway into the system entry point
-- introducing login and token issuance
-- protecting the first business endpoint through the gateway
-- documenting the runtime flow for the first secure banking calls
+- keeping the gateway as the single entry point
+- authenticating through `identity-service`
+- serving protected profile data through `customer-service`
+- serving protected balances through `account-service`
+- serving transaction history and transfer creation through `transaction-service`
+- serving payment history and payment creation through `payment-service`
+- serving audit feeds through `audit-service`
+- documenting the first realistic cross-service banking user journeys
 
-We are not yet implementing full business logic or persistent storage.
+We are still using in-memory business data in order to focus on service boundaries and runtime flow before moving to persistence and event-driven consistency.
 
 ## Documentation Map
 
@@ -51,6 +54,7 @@ This repository follows a documentation-first structure inspired by production-s
 - architecture overview: [docs/architecture/system-overview.md](/Users/yvz.o/Desktop/projects/Geteway_Pattern/docs/architecture/system-overview.md)
 - detailed system design: [docs/architecture/system-design.md](/Users/yvz.o/Desktop/projects/Geteway_Pattern/docs/architecture/system-design.md)
 - port and route plan: [docs/architecture/port-route-plan.md](/Users/yvz.o/Desktop/projects/Geteway_Pattern/docs/architecture/port-route-plan.md)
+- phase 4 flow map: [docs/architecture/faz4-business-flows.md](/Users/yvz.o/Desktop/projects/Geteway_Pattern/docs/architecture/faz4-business-flows.md)
 - failure scenarios: [docs/architecture/failure-scenarios.md](/Users/yvz.o/Desktop/projects/Geteway_Pattern/docs/architecture/failure-scenarios.md)
 - service catalog: [docs/architecture/service-catalog.md](/Users/yvz.o/Desktop/projects/Geteway_Pattern/docs/architecture/service-catalog.md)
 - security foundation: [docs/security/security-foundation.md](/Users/yvz.o/Desktop/projects/Geteway_Pattern/docs/security/security-foundation.md)
@@ -193,11 +197,10 @@ This file explains:
 
 ## What Comes Next
 
-Next steps after this foundation:
+Next steps after these business flows:
 
-1. define shared ports and runtime configuration
-2. assign ports to each service
-3. introduce Docker-based local infrastructure
-4. add the first gateway routes
-5. connect gateway to identity and account services
-6. start implementing the first real banking flows
+1. connect services through richer service-to-service communication patterns
+2. introduce Docker Compose based local orchestration
+3. add distributed tracing, structured logs, and metrics
+4. move critical flows toward Kafka and event-driven integration
+5. introduce persistence, idempotency, and stronger production hardening

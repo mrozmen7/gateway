@@ -1,22 +1,89 @@
 package com.bank.payment_service.api;
 
+import com.bank.payment_service.application.PaymentCommand;
+import com.bank.payment_service.application.PaymentDirectory;
+import com.bank.payment_service.application.PaymentRecord;
+import com.bank.payment_service.security.BankUserPrincipal;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import jakarta.validation.Valid;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.Map;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/payments")
+@SecurityRequirement(name = "bearerAuth")
 public class PaymentController {
 
-    @GetMapping("/capabilities")
-    public Map<String, Object> capabilities(@RequestHeader(value = "X-Correlation-Id", required = false) String correlationId) {
-        return Map.of(
-                "service", "payment-service",
-                "message", "Payment service is reachable. Idempotency and orchestration will be implemented later.",
-                "correlationId", correlationId
+    private final PaymentDirectory paymentDirectory;
+
+    public PaymentController(PaymentDirectory paymentDirectory) {
+        this.paymentDirectory = paymentDirectory;
+    }
+
+    @GetMapping("/me")
+    @Operation(summary = "Return all bill payments created by the authenticated user")
+    public List<PaymentResponse> myPayments(Authentication authentication) {
+        BankUserPrincipal principal = (BankUserPrincipal) authentication.getPrincipal();
+        return paymentDirectory.findPaymentsFor(principal).stream()
+                .map(this::toResponse)
+                .toList();
+    }
+
+    @GetMapping("/{paymentId}")
+    @Operation(summary = "Return a single payment when the caller is authorized to view it")
+    public PaymentResponse paymentById(@PathVariable String paymentId, Authentication authentication) {
+        BankUserPrincipal principal = (BankUserPrincipal) authentication.getPrincipal();
+        return toResponse(paymentDirectory.findAuthorizedPayment(paymentId, principal));
+    }
+
+    @PostMapping
+    @Operation(summary = "Create a domestic bill payment from an authenticated user's account")
+    public PaymentCreatedResponse createPayment(
+            @Valid @RequestBody PaymentCreateRequest request,
+            @RequestHeader(value = "X-Correlation-Id", required = false) String correlationId,
+            Authentication authentication
+    ) {
+        BankUserPrincipal principal = (BankUserPrincipal) authentication.getPrincipal();
+        PaymentRecord payment = paymentDirectory.createPayment(
+                new PaymentCommand(
+                        request.debtorAccountId(),
+                        request.billerName(),
+                        request.billerReference(),
+                        request.amount(),
+                        request.currency(),
+                        request.scheduleDate()
+                ),
+                principal
+        );
+
+        return new PaymentCreatedResponse(
+                payment.paymentId(),
+                payment.status(),
+                principal.username(),
+                correlationId
+        );
+    }
+
+    private PaymentResponse toResponse(PaymentRecord payment) {
+        return new PaymentResponse(
+                payment.paymentId(),
+                payment.debtorAccountId(),
+                payment.billerName(),
+                payment.billerReference(),
+                payment.amount(),
+                payment.currency(),
+                payment.scheduleDate(),
+                payment.status(),
+                payment.createdAt()
         );
     }
 }

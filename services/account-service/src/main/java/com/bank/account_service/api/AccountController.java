@@ -3,6 +3,8 @@ package com.bank.account_service.api;
 import com.bank.account_service.application.AccountDirectory;
 import com.bank.account_service.application.AccountRecord;
 import com.bank.account_service.security.BankUserPrincipal;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -14,6 +16,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/accounts")
+@SecurityRequirement(name = "bearerAuth")
 public class AccountController {
 
     private final AccountDirectory accountDirectory;
@@ -23,6 +26,7 @@ public class AccountController {
     }
 
     @GetMapping("/me")
+    @Operation(summary = "Return all accounts owned by the authenticated user")
     public List<AccountSummaryResponse> myAccounts(Authentication authentication) {
         BankUserPrincipal principal = (BankUserPrincipal) authentication.getPrincipal();
         return accountDirectory.findAccountsFor(principal).stream()
@@ -38,6 +42,7 @@ public class AccountController {
     }
 
     @GetMapping("/{accountId}")
+    @Operation(summary = "Return a single account when the caller is authorized to view it")
     public AccountDetailResponse accountById(
             @PathVariable String accountId,
             @RequestHeader(value = "X-Correlation-Id", required = false) String correlationId,
