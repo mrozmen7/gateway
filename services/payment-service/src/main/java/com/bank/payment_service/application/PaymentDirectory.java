@@ -11,18 +11,12 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
-import static org.springframework.http.HttpStatus.FORBIDDEN;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
 
 @Service
 public class PaymentDirectory {
 
     private final Map<String, List<PaymentRecord>> paymentsByUsername = new ConcurrentHashMap<>();
-    private final Map<String, String> accountOwners = Map.of(
-            "acc-chf-001", "lena.meyer",
-            "acc-chf-002", "lena.meyer",
-            "acc-ops-001", "marc.steiner"
-    );
 
     public PaymentDirectory() {
         paymentsByUsername.put("lena.meyer", new ArrayList<>(List.of(
@@ -44,16 +38,7 @@ public class PaymentDirectory {
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Payment not found"));
     }
 
-    public PaymentRecord createPayment(PaymentCommand command, BankUserPrincipal principal) {
-        String ownerUsername = accountOwners.get(command.debtorAccountId());
-        if (ownerUsername == null) {
-            throw new ResponseStatusException(NOT_FOUND, "Debtor account not found");
-        }
-
-        if (!canAccess(principal, ownerUsername)) {
-            throw new ResponseStatusException(FORBIDDEN, "You are not allowed to create a payment from this account");
-        }
-
+    public PaymentRecord createPayment(PaymentCommand command, String ownerUsername) {
         PaymentRecord payment = new PaymentRecord(
                 "pay-" + UUID.randomUUID().toString().substring(0, 8),
                 command.debtorAccountId(),

@@ -32,7 +32,7 @@ This project exists to teach:
 
 ## Current Phase
 
-We are in `Phase 4: Core Business Flows`.
+We are in `Phase 5: Service-to-Service Communication`.
 
 At this stage we are:
 
@@ -43,9 +43,12 @@ At this stage we are:
 - serving transaction history and transfer creation through `transaction-service`
 - serving payment history and payment creation through `payment-service`
 - serving audit feeds through `audit-service`
-- documenting the first realistic cross-service banking user journeys
+- verifying debtor accounts from `transaction-service` and `payment-service` via internal `account-service` APIs
+- verifying customer eligibility and KYC via internal `customer-service` APIs
+- persisting transfer and payment audit events through internal `audit-service` APIs
+- applying timeout, retry, and correlation propagation in synchronous downstream calls
 
-We are still using in-memory business data in order to focus on service boundaries and runtime flow before moving to persistence and event-driven consistency.
+We are still using in-memory business data so that the learning focus stays on service boundaries, orchestration, and runtime flow before moving to persistent storage and event-driven consistency.
 
 ## Documentation Map
 
@@ -55,6 +58,7 @@ This repository follows a documentation-first structure inspired by production-s
 - detailed system design: [docs/architecture/system-design.md](/Users/yvz.o/Desktop/projects/Geteway_Pattern/docs/architecture/system-design.md)
 - port and route plan: [docs/architecture/port-route-plan.md](/Users/yvz.o/Desktop/projects/Geteway_Pattern/docs/architecture/port-route-plan.md)
 - phase 4 flow map: [docs/architecture/faz4-business-flows.md](/Users/yvz.o/Desktop/projects/Geteway_Pattern/docs/architecture/faz4-business-flows.md)
+- phase 5 service communication map: [docs/architecture/faz5-service-communication.md](/Users/yvz.o/Desktop/projects/Geteway_Pattern/docs/architecture/faz5-service-communication.md)
 - failure scenarios: [docs/architecture/failure-scenarios.md](/Users/yvz.o/Desktop/projects/Geteway_Pattern/docs/architecture/failure-scenarios.md)
 - service catalog: [docs/architecture/service-catalog.md](/Users/yvz.o/Desktop/projects/Geteway_Pattern/docs/architecture/service-catalog.md)
 - security foundation: [docs/security/security-foundation.md](/Users/yvz.o/Desktop/projects/Geteway_Pattern/docs/security/security-foundation.md)
@@ -181,6 +185,14 @@ Making sure the same request does not produce the same payment or transfer twice
 - design for traceability and auditability
 - prefer professional clarity over quick hacks
 
+## Local Verification
+
+We now keep a local smoke test script for the Phase 5 orchestration flow:
+
+- [infra/local/phase5-smoke-test.sh](/Users/yvz.o/Desktop/projects/Geteway_Pattern/infra/local/phase5-smoke-test.sh)
+
+This script logs in through the gateway, creates a transfer, creates a payment, and verifies that the resulting audit events are visible through the audit feed.
+
 ## Repository Rules
 
 The repository-level engineering rules live in:
@@ -199,8 +211,8 @@ This file explains:
 
 Next steps after these business flows:
 
-1. connect services through richer service-to-service communication patterns
-2. introduce Docker Compose based local orchestration
-3. add distributed tracing, structured logs, and metrics
-4. move critical flows toward Kafka and event-driven integration
-5. introduce persistence, idempotency, and stronger production hardening
+1. introduce Docker Compose based local orchestration
+2. add distributed tracing, structured logs, and metrics
+3. move critical flows toward Kafka and event-driven integration
+4. introduce persistence, idempotency, and stronger production hardening
+5. deepen failure handling with circuit breakers and contract tests

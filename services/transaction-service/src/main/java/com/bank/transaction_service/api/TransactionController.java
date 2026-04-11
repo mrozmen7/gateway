@@ -4,6 +4,7 @@ import com.bank.transaction_service.application.TransactionLedger;
 import com.bank.transaction_service.application.TransactionRecord;
 import com.bank.transaction_service.application.TransferCommand;
 import com.bank.transaction_service.application.TransferResult;
+import com.bank.transaction_service.application.TransferProcessingService;
 import com.bank.transaction_service.security.BankUserPrincipal;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -18,6 +19,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1/transactions")
@@ -25,9 +27,11 @@ import java.util.List;
 public class TransactionController {
 
     private final TransactionLedger transactionLedger;
+    private final TransferProcessingService transferProcessingService;
 
-    public TransactionController(TransactionLedger transactionLedger) {
+    public TransactionController(TransactionLedger transactionLedger, TransferProcessingService transferProcessingService) {
         this.transactionLedger = transactionLedger;
+        this.transferProcessingService = transferProcessingService;
     }
 
     @GetMapping("/me")
@@ -77,7 +81,11 @@ public class TransactionController {
             Authentication authentication
     ) {
         BankUserPrincipal principal = (BankUserPrincipal) authentication.getPrincipal();
-        TransferResult result = transactionLedger.createTransfer(
+        String effectiveCorrelationId = correlationId == null || correlationId.isBlank()
+                ? "corr-" + UUID.randomUUID()
+                : correlationId;
+
+        TransferResult result = transferProcessingService.processTransfer(
                 new TransferCommand(
                         request.fromAccountId(),
                         request.toIban(),
@@ -85,7 +93,8 @@ public class TransactionController {
                         request.currency(),
                         request.description()
                 ),
-                principal
+                principal,
+                effectiveCorrelationId
         );
 
         return new TransferResponse(
@@ -95,7 +104,7 @@ public class TransactionController {
                 result.amount(),
                 result.currency(),
                 principal.username(),
-                correlationId
+                effectiveCorrelationId
         );
     }
 }

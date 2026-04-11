@@ -2,8 +2,11 @@ package com.bank.customer_service.application;
 
 import com.bank.customer_service.security.BankUserPrincipal;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Map;
+
+import static org.springframework.http.HttpStatus.NOT_FOUND;
 
 @Service
 public class CustomerDirectory {
@@ -54,6 +57,14 @@ public class CustomerDirectory {
     );
 
     public CustomerProfile findProfileFor(BankUserPrincipal principal) {
-        return profilesByUsername.get(principal.username());
+        return findProfileByUsername(principal.username());
+    }
+
+    public CustomerProfile findProfileByUsername(String username) {
+        CustomerProfile profile = profilesByUsername.get(username);
+        if (profile == null) {
+            throw new ResponseStatusException(NOT_FOUND, "Customer profile not found");
+        }
+        return profile;
     }
 }

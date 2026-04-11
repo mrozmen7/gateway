@@ -21,6 +21,14 @@ flowchart TB
     Gateway --> Transaction["Transaction Service"]
     Gateway --> Payment["Payment Service"]
     Gateway --> Audit["Audit Service"]
+
+    Transaction --> Account
+    Transaction --> Customer
+    Transaction --> Audit
+
+    Payment --> Account
+    Payment --> Customer
+    Payment --> Audit
 ```
 
 ## Why This Shape Fits Banking
@@ -41,15 +49,21 @@ If these responsibilities are mixed too early, it becomes difficult to reason ab
 sequenceDiagram
     participant C as Client
     participant G as API Gateway
-    participant I as Identity Service
+    participant T as Transaction Service
     participant A as Account Service
+    participant U as Customer Service
+    participant D as Audit Service
 
-    C->>G: GET /accounts/{id}
-    G->>I: validate token or auth contract
-    I-->>G: authenticated identity
-    G->>A: route request with verified identity
-    A-->>G: account response
-    G-->>C: filtered response
+    C->>G: POST /transactions/transfers
+    G->>T: route with bearer token
+    T->>A: internal account verification
+    A-->>T: account owner and status
+    T->>U: internal customer eligibility lookup
+    U-->>T: KYC and risk result
+    T->>D: internal audit write
+    D-->>T: accepted
+    T-->>G: transfer response
+    G-->>C: final response
 ```
 
 ## Important Terms
@@ -63,15 +77,15 @@ The rule set that decides which path goes to which backend service.
 ### `Boundary ownership`
 The idea that each service owns a clear area of the system.
 
-## Phase 2 Scope
+## Phase 5 Scope
 
-In Phase 2, this architecture is mostly structural.
+In Phase 5, the architecture becomes meaningfully distributed.
 
 That means:
 
-- services exist
-- repository structure exists
-- documentation exists
-- runtime configuration is not fully complete yet
+- transaction and payment flows no longer rely only on local in-memory ownership checks
+- business services call downstream internal APIs synchronously
+- timeout, retry, and correlation propagation are part of the runtime behavior
+- audit writes are produced as part of the orchestration path
 
-The business behavior will start in later phases.
+This is still not the final production model, but it now behaves like a real microservice foundation with visible cross-service coordination.

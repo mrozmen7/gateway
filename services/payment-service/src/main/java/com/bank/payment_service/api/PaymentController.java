@@ -3,6 +3,7 @@ package com.bank.payment_service.api;
 import com.bank.payment_service.application.PaymentCommand;
 import com.bank.payment_service.application.PaymentDirectory;
 import com.bank.payment_service.application.PaymentRecord;
+import com.bank.payment_service.application.PaymentProcessingService;
 import com.bank.payment_service.security.BankUserPrincipal;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -17,6 +18,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1/payments")
@@ -24,9 +26,11 @@ import java.util.List;
 public class PaymentController {
 
     private final PaymentDirectory paymentDirectory;
+    private final PaymentProcessingService paymentProcessingService;
 
-    public PaymentController(PaymentDirectory paymentDirectory) {
+    public PaymentController(PaymentDirectory paymentDirectory, PaymentProcessingService paymentProcessingService) {
         this.paymentDirectory = paymentDirectory;
+        this.paymentProcessingService = paymentProcessingService;
     }
 
     @GetMapping("/me")
@@ -53,7 +57,11 @@ public class PaymentController {
             Authentication authentication
     ) {
         BankUserPrincipal principal = (BankUserPrincipal) authentication.getPrincipal();
-        PaymentRecord payment = paymentDirectory.createPayment(
+        String effectiveCorrelationId = correlationId == null || correlationId.isBlank()
+                ? "corr-" + UUID.randomUUID()
+                : correlationId;
+
+        PaymentRecord payment = paymentProcessingService.processPayment(
                 new PaymentCommand(
                         request.debtorAccountId(),
                         request.billerName(),
@@ -62,14 +70,15 @@ public class PaymentController {
                         request.currency(),
                         request.scheduleDate()
                 ),
-                principal
+                principal,
+                effectiveCorrelationId
         );
 
         return new PaymentCreatedResponse(
                 payment.paymentId(),
                 payment.status(),
                 principal.username(),
-                correlationId
+                effectiveCorrelationId
         );
     }
 

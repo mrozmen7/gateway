@@ -46,4 +46,12 @@ public class AccountDirectory {
 
         return accountRecord;
     }
+
+    public AccountRecord findAccountById(String accountId) {
+        return accountsByUsername.values().stream()
+                .flatMap(List::stream)
+                .filter(candidate -> candidate.accountId().equals(accountId))
+                .findFirst()
+                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Account not found"));
+    }
 }

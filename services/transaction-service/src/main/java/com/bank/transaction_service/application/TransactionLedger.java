@@ -11,18 +11,12 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
-import static org.springframework.http.HttpStatus.FORBIDDEN;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
 
 @Service
 public class TransactionLedger {
 
     private final Map<String, List<TransactionRecord>> transactionsByUsername = new ConcurrentHashMap<>();
-    private final Map<String, String> accountOwners = Map.of(
-            "acc-chf-001", "lena.meyer",
-            "acc-chf-002", "lena.meyer",
-            "acc-ops-001", "marc.steiner"
-    );
 
     public TransactionLedger() {
         transactionsByUsername.put("lena.meyer", new ArrayList<>(List.of(
@@ -47,16 +41,7 @@ public class TransactionLedger {
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Transaction not found"));
     }
 
-    public TransferResult createTransfer(TransferCommand command, BankUserPrincipal principal) {
-        String ownerUsername = accountOwners.get(command.fromAccountId());
-        if (ownerUsername == null) {
-            throw new ResponseStatusException(NOT_FOUND, "Debtor account not found");
-        }
-
-        if (!canAccess(principal, ownerUsername)) {
-            throw new ResponseStatusException(FORBIDDEN, "You are not allowed to transfer from this account");
-        }
-
+    public TransferResult createTransfer(TransferCommand command, String ownerUsername) {
         String transactionId = "txn-" + UUID.randomUUID().toString().substring(0, 8);
         String bookingReference = "BOOK-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
 
