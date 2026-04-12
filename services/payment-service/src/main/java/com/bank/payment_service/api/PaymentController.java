@@ -54,6 +54,7 @@ public class PaymentController {
     public PaymentCreatedResponse createPayment(
             @Valid @RequestBody PaymentCreateRequest request,
             @RequestHeader(value = "X-Correlation-Id", required = false) String correlationId,
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
             Authentication authentication
     ) {
         BankUserPrincipal principal = (BankUserPrincipal) authentication.getPrincipal();
@@ -71,7 +72,8 @@ public class PaymentController {
                         request.scheduleDate()
                 ),
                 principal,
-                effectiveCorrelationId
+                effectiveCorrelationId,
+                idempotencyKey
         );
 
         return new PaymentCreatedResponse(

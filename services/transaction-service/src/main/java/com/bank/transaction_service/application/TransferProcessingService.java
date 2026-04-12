@@ -15,8 +15,12 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 import static org.springframework.http.HttpStatus.BAD_GATEWAY;
+import static org.springframework.http.HttpStatus.BAD_REQUEST;
+import static org.springframework.http.HttpStatus.CONFLICT;
 import static org.springframework.http.HttpStatus.FORBIDDEN;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
 import static org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE;
@@ -33,6 +37,7 @@ public class TransferProcessingService {
     private final String auditServiceUrl;
     private final Duration requestTimeout;
     private final int maxAttempts;
+    private final ConcurrentMap<String, Object> idempotencyMonitors = new ConcurrentHashMap<>();
 
     public TransferProcessingService(
             TransactionLedger transactionLedger,
@@ -58,17 +63,60 @@ public class TransferProcessingService {
     }
 
     public TransferResult processTransfer(TransferCommand command, BankUserPrincipal principal, String correlationId) {
+        return processTransfer(command, principal, correlationId, null);
+    }
+
+    public TransferResult processTransfer(TransferCommand command, BankUserPrincipal principal, String correlationId, String idempotencyKey) {
         if ("AUDITOR".equals(principal.role())) {
             throw new ResponseStatusException(FORBIDDEN, "Auditors can review transfers but cannot create them");
         }
 
+        if (idempotencyKey == null || idempotencyKey.isBlank()) {
+            return executeTransfer(command, principal, correlationId, null);
+        }
+
+        String lockKey = principal.username() + "::" + idempotencyKey;
+        Object monitor = idempotencyMonitors.computeIfAbsent(lockKey, ignored -> new Object());
+        try {
+            synchronized (monitor) {
+                TransferResult existing = transactionLedger.findIdempotentTransfer(principal.username(), idempotencyKey);
+                if (existing != null) {
+                    return existing;
+                }
+
+                return executeTransfer(command, principal, correlationId, idempotencyKey);
+            }
+        } finally {
+            idempotencyMonitors.remove(lockKey, monitor);
+        }
+    }
+
+    private TransferResult executeTransfer(TransferCommand command, BankUserPrincipal principal, String correlationId, String idempotencyKey) {
         InternalAccountVerification account = verifyAccount(command.fromAccountId(), correlationId);
         ensureCallerCanUseAccount(principal, account);
 
         InternalCustomerEligibility customer = loadCustomerEligibility(account.ownerUsername(), correlationId);
         ensureCustomerEligible(principal, customer);
 
-        TransferResult result = transactionLedger.createTransfer(command, account.ownerUsername());
+        InternalTransferSettlement settlement = settleTransfer(command, correlationId);
+        TransferResult result = transactionLedger.createTransfer(
+                new SettledTransfer(
+                        settlement.sourceAccountId(),
+                        settlement.sourceOwnerUsername(),
+                        settlement.sourceIban(),
+                        settlement.targetAccountId(),
+                        settlement.targetOwnerUsername(),
+                        settlement.targetIban(),
+                        settlement.amount(),
+                        settlement.currency(),
+                        settlement.status()
+                ),
+                command.description()
+        );
+
+        if (idempotencyKey != null && !idempotencyKey.isBlank()) {
+            transactionLedger.rememberIdempotentTransfer(principal.username(), idempotencyKey, result, correlationId);
+        }
 
         recordAuditEvent(
                 new InternalAuditEventRequest(
@@ -95,6 +143,29 @@ public class TransferProcessingService {
         if (!account.ownerUsername().equals(principal.username())) {
             throw new ResponseStatusException(FORBIDDEN, "You are not allowed to transfer from this account");
         }
+    }
+
+    private InternalTransferSettlement settleTransfer(TransferCommand command, String correlationId) {
+        InternalHttpResponse response = sendWithRetry(
+                withJsonBody(
+                        baseRequest(accountServiceUrl + "/internal/accounts/transfers/settle", correlationId),
+                        new InternalTransferSettlementRequest(
+                                command.fromAccountId(),
+                                command.toIban(),
+                                command.amount(),
+                                command.currency()
+                        )
+                ),
+                "account-service transfer settlement"
+        );
+
+        return switch (response.statusCode()) {
+            case 200 -> readBody(response.body(), InternalTransferSettlement.class, "transfer settlement");
+            case 404 -> throw new ResponseStatusException(NOT_FOUND, "Target IBAN or source account not found");
+            case 400 -> throw new ResponseStatusException(BAD_REQUEST, "Transfer rejected by account-service posting rules");
+            case 409 -> throw new ResponseStatusException(CONFLICT, "Transfer rejected because the source account has insufficient funds");
+            default -> throw new ResponseStatusException(BAD_GATEWAY, "Account transfer settlement failed via account-service");
+        };
     }
 
     private void ensureCustomerEligible(BankUserPrincipal principal, InternalCustomerEligibility customer) {
@@ -206,6 +277,7 @@ public class TransferProcessingService {
 
     private record InternalAccountVerification(
             String accountId,
+            String iban,
             String ownerUserId,
             String ownerUsername,
             String ownerName,
@@ -213,6 +285,29 @@ public class TransferProcessingService {
             String type,
             String status,
             String balance
+    ) {
+    }
+
+    private record InternalTransferSettlementRequest(
+            String sourceAccountId,
+            String targetIban,
+            String amount,
+            String currency
+    ) {
+    }
+
+    private record InternalTransferSettlement(
+            String sourceAccountId,
+            String sourceOwnerUsername,
+            String sourceIban,
+            String sourceBalanceAfter,
+            String targetAccountId,
+            String targetOwnerUsername,
+            String targetIban,
+            String targetBalanceAfter,
+            String amount,
+            String currency,
+            String status
     ) {
     }
 

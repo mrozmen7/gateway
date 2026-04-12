@@ -1,108 +1,236 @@
 package com.bank.account_service.application;
 
 import com.bank.account_service.security.BankUserPrincipal;
+import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
-import java.util.ArrayList;
+import java.math.RoundingMode;
 import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.Locale;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 
-import static org.springframework.http.HttpStatus.FORBIDDEN;
+import static org.springframework.http.HttpStatus.BAD_REQUEST;
+import static org.springframework.http.HttpStatus.CONFLICT;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
 
 @Service
 public class AccountDirectory {
 
-    private final ConcurrentHashMap<String, List<AccountRecord>> accountsByUsername = new ConcurrentHashMap<>(Map.of(
-            "lena.meyer", new ArrayList<>(List.of(
-                    new AccountRecord("acc-chf-001", "CH93-0076-2011-6238-5295-7", "cust-1001", "lena.meyer", "Lena Meyer", "CHF", "CHECKING", "ACTIVE", "12500.35"),
-                    new AccountRecord("acc-chf-002", "CH44-0099-9123-0008-8123-4", "cust-1001", "lena.meyer", "Lena Meyer", "CHF", "SAVINGS", "ACTIVE", "82000.00")
-            )),
-            "marc.steiner", new ArrayList<>(List.of(
-                    new AccountRecord("acc-ops-001", "CH55-0900-0000-1111-2222-3", "ops-2001", "marc.steiner", "Marc Steiner", "CHF", "INTERNAL", "ACTIVE", "0.00")
-            ))
-    ));
+    private final AccountRepository accountRepository;
+
+    public AccountDirectory(AccountRepository accountRepository) {
+        this.accountRepository = accountRepository;
+    }
 
     public List<AccountRecord> findAccountsFor(BankUserPrincipal principal) {
-        return accountsByUsername.getOrDefault(principal.username(), List.of());
+        return accountRepository.findByOwnerUsernameOrderByIdDesc(principal.username()).stream()
+                .map(this::toRecord)
+                .toList();
     }
 
     public AccountRecord findAuthorizedAccount(String accountId, BankUserPrincipal principal) {
-        Optional<AccountRecord> account = accountsByUsername.values().stream()
-                .flatMap(List::stream)
-                .filter(candidate -> candidate.accountId().equals(accountId))
-                .findFirst();
+        AccountEntity entity = loadByAccountId(accountId);
 
-        AccountRecord accountRecord = account.orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Account not found"));
-
-        if ("OPS".equals(principal.role()) || "AUDITOR".equals(principal.role())) {
-            return accountRecord;
+        if ("OPS".equals(principal.role()) || "AUDITOR".equals(principal.role()) || entity.getOwnerUsername().equals(principal.username())) {
+            return toRecord(entity);
         }
 
-        if (!accountRecord.ownerUsername().equals(principal.username())) {
-            throw new ResponseStatusException(FORBIDDEN, "You are not allowed to access this account");
-        }
-
-        return accountRecord;
+        throw new ResponseStatusException(NOT_FOUND, "Account not found");
     }
 
     public AccountRecord findAccountById(String accountId) {
-        return accountsByUsername.values().stream()
-                .flatMap(List::stream)
-                .filter(candidate -> candidate.accountId().equals(accountId))
-                .findFirst()
-                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Account not found"));
+        return toRecord(loadByAccountId(accountId));
     }
 
+    @Transactional
     public AccountRecord createAccount(BankUserPrincipal principal, String currency, String type, String openingBalance) {
-        String normalizedCurrency = currency.trim().toUpperCase();
-        String normalizedType = type.trim().toUpperCase();
-        String normalizedBalance = normalizeBalance(openingBalance);
+        BigDecimal normalizedBalance = parsePositiveOrZero(openingBalance, "Opening balance");
 
-        AccountRecord account = new AccountRecord(
-                "acc-" + UUID.randomUUID().toString().substring(0, 8),
-                generateIban(),
+        AccountEntity entity = new AccountEntity(
+                nextAccountId(),
+                nextIban(),
                 principal.userId(),
                 principal.username(),
                 displayNameFrom(principal.username()),
-                normalizedCurrency,
-                normalizedType,
+                normalizeUpper(currency, "currency"),
+                normalizeUpper(type, "type"),
                 "ACTIVE",
                 normalizedBalance
         );
 
-        accountsByUsername.computeIfAbsent(principal.username(), ignored -> new ArrayList<>()).add(0, account);
-        return account;
+        return toRecord(accountRepository.save(entity));
     }
 
-    private String generateIban() {
-        String raw = UUID.randomUUID().toString().replace("-", "").toUpperCase();
-        return "CH" + raw.substring(0, 2) + "-" + raw.substring(2, 6) + "-" + raw.substring(6, 10) + "-" + raw.substring(10, 14) + "-" + raw.substring(14, 18);
+    @Transactional
+    public InternalTransferSettlementResult settleTransfer(InternalTransferSettlementCommand command) {
+        AccountEntity source = loadByAccountId(command.sourceAccountId());
+        AccountEntity target = loadByIban(command.targetIban());
+        BigDecimal amount = parseStrictlyPositive(command.amount(), "Transfer amount");
+        String currency = normalizeUpper(command.currency(), "currency");
+
+        ensureActive(source, "Source account");
+        ensureActive(target, "Target account");
+        ensureCurrency(source, currency, "Source account");
+        ensureCurrency(target, currency, "Target account");
+
+        if (source.getIban().equals(target.getIban())) {
+            throw new ResponseStatusException(BAD_REQUEST, "Source and target account cannot be the same");
+        }
+
+        if (source.getBalance().compareTo(amount) < 0) {
+            throw new ResponseStatusException(CONFLICT, "Insufficient funds on source account");
+        }
+
+        source.setBalance(source.getBalance().subtract(amount));
+        target.setBalance(target.getBalance().add(amount));
+
+        accountRepository.save(source);
+        accountRepository.save(target);
+
+        return new InternalTransferSettlementResult(
+                source.getAccountId(),
+                source.getOwnerUsername(),
+                source.getIban(),
+                formatAmount(source.getBalance()),
+                target.getAccountId(),
+                target.getOwnerUsername(),
+                target.getIban(),
+                formatAmount(target.getBalance()),
+                formatAmount(amount),
+                currency,
+                "BOOKED"
+        );
+    }
+
+    @Transactional
+    public InternalPaymentDebitResult debitPayment(InternalPaymentDebitCommand command) {
+        AccountEntity debtor = loadByAccountId(command.debtorAccountId());
+        BigDecimal amount = parseStrictlyPositive(command.amount(), "Payment amount");
+        String currency = normalizeUpper(command.currency(), "currency");
+
+        ensureActive(debtor, "Debtor account");
+        ensureCurrency(debtor, currency, "Debtor account");
+
+        if (debtor.getBalance().compareTo(amount) < 0) {
+            throw new ResponseStatusException(CONFLICT, "Insufficient funds on debtor account");
+        }
+
+        debtor.setBalance(debtor.getBalance().subtract(amount));
+        accountRepository.save(debtor);
+
+        return new InternalPaymentDebitResult(
+                debtor.getAccountId(),
+                debtor.getOwnerUsername(),
+                debtor.getOwnerName(),
+                formatAmount(debtor.getBalance()),
+                formatAmount(amount),
+                currency,
+                "BOOKED"
+        );
+    }
+
+    private AccountEntity loadByAccountId(String accountId) {
+        return accountRepository.findByAccountId(accountId)
+                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Account not found"));
+    }
+
+    private AccountEntity loadByIban(String iban) {
+        return accountRepository.findByIban(iban)
+                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Target IBAN not found"));
+    }
+
+    private void ensureActive(AccountEntity entity, String label) {
+        if (!"ACTIVE".equals(entity.getStatus())) {
+            throw new ResponseStatusException(BAD_REQUEST, label + " is not active");
+        }
+    }
+
+    private void ensureCurrency(AccountEntity entity, String currency, String label) {
+        if (!entity.getCurrency().equals(currency)) {
+            throw new ResponseStatusException(BAD_REQUEST, label + " currency mismatch");
+        }
+    }
+
+    private BigDecimal parseStrictlyPositive(String rawAmount, String label) {
+        BigDecimal amount = parseAmount(rawAmount, label);
+        if (amount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new ResponseStatusException(BAD_REQUEST, label + " must be greater than zero");
+        }
+        return amount;
+    }
+
+    private BigDecimal parsePositiveOrZero(String rawAmount, String label) {
+        BigDecimal amount = parseAmount(rawAmount, label);
+        if (amount.compareTo(BigDecimal.ZERO) < 0) {
+            throw new ResponseStatusException(BAD_REQUEST, label + " must be zero or positive");
+        }
+        return amount;
+    }
+
+    private BigDecimal parseAmount(String rawAmount, String label) {
+        try {
+            return new BigDecimal(rawAmount).setScale(2, RoundingMode.HALF_UP);
+        } catch (NumberFormatException exception) {
+            throw new ResponseStatusException(BAD_REQUEST, label + " must be a valid decimal number");
+        }
+    }
+
+    private String nextAccountId() {
+        String candidate;
+        do {
+            candidate = "acc-" + UUID.randomUUID().toString().substring(0, 8);
+        } while (accountRepository.existsByAccountId(candidate));
+        return candidate;
+    }
+
+    private String nextIban() {
+        String candidate;
+        do {
+            String suffix = UUID.randomUUID().toString().replace("-", "").substring(0, 20).toUpperCase(Locale.ROOT);
+            candidate = "CH" + suffix;
+        } while (accountRepository.existsByIban(candidate));
+        return candidate;
+    }
+
+    private String normalizeUpper(String rawValue, String fieldName) {
+        if (rawValue == null || rawValue.isBlank()) {
+            throw new ResponseStatusException(BAD_REQUEST, fieldName + " is required");
+        }
+        return rawValue.trim().toUpperCase(Locale.ROOT);
     }
 
     private String displayNameFrom(String username) {
-        String[] tokens = username.split("\\.");
-        return List.of(tokens).stream()
-                .filter(token -> !token.isBlank())
-                .map(token -> Character.toUpperCase(token.charAt(0)) + token.substring(1))
-                .reduce((left, right) -> left + " " + right)
-                .orElse(username);
+        String[] parts = username.split("\\.");
+        if (parts.length == 2) {
+            return capitalize(parts[0]) + " " + capitalize(parts[1]);
+        }
+        return capitalize(username);
     }
 
-    private String normalizeBalance(String openingBalance) {
-        try {
-            BigDecimal amount = new BigDecimal(openingBalance);
-            if (amount.signum() < 0) {
-                throw new IllegalArgumentException("Opening balance cannot be negative");
-            }
-            return amount.setScale(2).toPlainString();
-        } catch (Exception exception) {
-            throw new ResponseStatusException(FORBIDDEN, "Opening balance must be a valid non-negative decimal");
+    private String capitalize(String rawValue) {
+        if (rawValue.isBlank()) {
+            return rawValue;
         }
+        return rawValue.substring(0, 1).toUpperCase(Locale.ROOT) + rawValue.substring(1);
+    }
+
+    private String formatAmount(BigDecimal amount) {
+        return amount.setScale(2, RoundingMode.HALF_UP).toPlainString();
+    }
+
+    private AccountRecord toRecord(AccountEntity entity) {
+        return new AccountRecord(
+                entity.getAccountId(),
+                entity.getIban(),
+                entity.getOwnerUserId(),
+                entity.getOwnerUsername(),
+                entity.getOwnerName(),
+                entity.getCurrency(),
+                entity.getType(),
+                entity.getStatus(),
+                formatAmount(entity.getBalance())
+        );
     }
 }

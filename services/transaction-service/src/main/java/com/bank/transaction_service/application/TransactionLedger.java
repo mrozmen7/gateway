@@ -1,76 +1,146 @@
 package com.bank.transaction_service.application;
 
 import com.bank.transaction_service.security.BankUserPrincipal;
+import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 
 import static org.springframework.http.HttpStatus.NOT_FOUND;
 
 @Service
 public class TransactionLedger {
 
-    private final Map<String, List<TransactionRecord>> transactionsByUsername = new ConcurrentHashMap<>();
+    private final LedgerEntryRepository ledgerEntryRepository;
+    private final TransferIdempotencyRepository transferIdempotencyRepository;
 
-    public TransactionLedger() {
-        transactionsByUsername.put("lena.meyer", new ArrayList<>(List.of(
-                new TransactionRecord("txn-1001", "acc-chf-001", "lena.meyer", "DEBIT", "CARD", "48.90", "CHF", "CH66-1234-9911-0000-1000-1", "Coffee subscription", "2026-04-06", "BOOKED"),
-                new TransactionRecord("txn-1002", "acc-chf-001", "lena.meyer", "CREDIT", "SALARY", "8650.00", "CHF", "CH00-EMPLOYER-2026", "Monthly salary", "2026-04-01", "BOOKED")
-        )));
-        transactionsByUsername.put("marc.steiner", new ArrayList<>(List.of(
-                new TransactionRecord("txn-ops-1001", "acc-ops-001", "marc.steiner", "DEBIT", "FEE", "0.00", "CHF", "INTERNAL", "Internal ops monitoring entry", "2026-04-05", "BOOKED")
-        )));
+    public TransactionLedger(LedgerEntryRepository ledgerEntryRepository, TransferIdempotencyRepository transferIdempotencyRepository) {
+        this.ledgerEntryRepository = ledgerEntryRepository;
+        this.transferIdempotencyRepository = transferIdempotencyRepository;
     }
 
     public List<TransactionRecord> findTransactionsFor(BankUserPrincipal principal) {
-        return List.copyOf(transactionsByUsername.getOrDefault(principal.username(), List.of()));
+        return ledgerEntryRepository.findByOwnerUsernameOrderByIdDesc(principal.username()).stream()
+                .map(this::toRecord)
+                .toList();
     }
 
     public TransactionRecord findAuthorizedTransaction(String transactionId, BankUserPrincipal principal) {
-        return transactionsByUsername.values().stream()
-                .flatMap(List::stream)
-                .filter(transaction -> transaction.transactionId().equals(transactionId))
-                .filter(transaction -> canAccess(principal, transaction.ownerUsername()))
-                .findFirst()
+        return lookupAuthorizedEntity(transactionId, principal)
+                .map(this::toRecord)
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Transaction not found"));
     }
 
-    public TransferResult createTransfer(TransferCommand command, String ownerUsername) {
+    public TransferResult findIdempotentTransfer(String requesterUsername, String idempotencyKey) {
+        return transferIdempotencyRepository.findByRequesterUsernameAndIdempotencyKey(requesterUsername, idempotencyKey)
+                .map(entity -> new TransferResult(
+                        entity.getTransactionId(),
+                        entity.getBookingReference(),
+                        entity.getStatus(),
+                        formatAmount(entity.getAmount()),
+                        entity.getCurrency()
+                ))
+                .orElse(null);
+    }
+
+    @Transactional
+    public TransferResult createTransfer(SettledTransfer settledTransfer, String description) {
         String transactionId = "txn-" + UUID.randomUUID().toString().substring(0, 8);
         String bookingReference = "BOOK-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+        BigDecimal amount = parseAmount(settledTransfer.amount());
 
-        TransactionRecord record = new TransactionRecord(
-                transactionId,
-                command.fromAccountId(),
-                ownerUsername,
-                "DEBIT",
-                "TRANSFER",
-                command.amount(),
-                command.currency(),
-                command.toIban(),
-                command.description(),
-                LocalDate.now().toString(),
-                "PENDING_SETTLEMENT"
-        );
-
-        transactionsByUsername.computeIfAbsent(ownerUsername, ignored -> new ArrayList<>()).add(0, record);
+        ledgerEntryRepository.saveAll(List.of(
+                new LedgerEntryEntity(
+                        transactionId,
+                        bookingReference,
+                        settledTransfer.sourceAccountId(),
+                        settledTransfer.sourceOwnerUsername(),
+                        "DEBIT",
+                        "TRANSFER",
+                        amount,
+                        settledTransfer.currency(),
+                        settledTransfer.targetIban(),
+                        description,
+                        LocalDate.now(),
+                        settledTransfer.status()
+                ),
+                new LedgerEntryEntity(
+                        transactionId,
+                        bookingReference,
+                        settledTransfer.targetAccountId(),
+                        settledTransfer.targetOwnerUsername(),
+                        "CREDIT",
+                        "TRANSFER",
+                        amount,
+                        settledTransfer.currency(),
+                        settledTransfer.sourceIban(),
+                        description,
+                        LocalDate.now(),
+                        settledTransfer.status()
+                )
+        ));
 
         return new TransferResult(
                 transactionId,
                 bookingReference,
-                record.status(),
-                command.amount(),
-                command.currency()
+                settledTransfer.status(),
+                settledTransfer.amount(),
+                settledTransfer.currency()
         );
+    }
+
+    @Transactional
+    public void rememberIdempotentTransfer(String requesterUsername, String idempotencyKey, TransferResult result, String correlationId) {
+        transferIdempotencyRepository.save(new TransferIdempotencyEntity(
+                requesterUsername,
+                idempotencyKey,
+                result.transactionId(),
+                result.bookingReference(),
+                result.status(),
+                parseAmount(result.amount()),
+                result.currency(),
+                correlationId
+        ));
+    }
+
+    private java.util.Optional<LedgerEntryEntity> lookupAuthorizedEntity(String transactionId, BankUserPrincipal principal) {
+        if ("OPS".equals(principal.role()) || "AUDITOR".equals(principal.role())) {
+            return ledgerEntryRepository.findFirstByTransactionIdOrderByIdAsc(transactionId);
+        }
+
+        return ledgerEntryRepository.findFirstByTransactionIdAndOwnerUsernameOrderByIdAsc(transactionId, principal.username());
     }
 
     private boolean canAccess(BankUserPrincipal principal, String ownerUsername) {
         return "OPS".equals(principal.role()) || "AUDITOR".equals(principal.role()) || ownerUsername.equals(principal.username());
+    }
+
+    private TransactionRecord toRecord(LedgerEntryEntity entity) {
+        return new TransactionRecord(
+                entity.getTransactionId(),
+                entity.getAccountId(),
+                entity.getOwnerUsername(),
+                entity.getDirection(),
+                entity.getType(),
+                formatAmount(entity.getAmount()),
+                entity.getCurrency(),
+                entity.getCounterpartyIban(),
+                entity.getDescription(),
+                entity.getBookingDate().toString(),
+                entity.getStatus()
+        );
+    }
+
+    private BigDecimal parseAmount(String amount) {
+        return new BigDecimal(amount).setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private String formatAmount(BigDecimal amount) {
+        return amount.setScale(2, RoundingMode.HALF_UP).toPlainString();
     }
 }

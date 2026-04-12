@@ -15,8 +15,12 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 import static org.springframework.http.HttpStatus.BAD_GATEWAY;
+import static org.springframework.http.HttpStatus.BAD_REQUEST;
+import static org.springframework.http.HttpStatus.CONFLICT;
 import static org.springframework.http.HttpStatus.FORBIDDEN;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
 import static org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE;
@@ -33,6 +37,7 @@ public class PaymentProcessingService {
     private final String auditServiceUrl;
     private final Duration requestTimeout;
     private final int maxAttempts;
+    private final ConcurrentMap<String, Object> idempotencyMonitors = new ConcurrentHashMap<>();
 
     public PaymentProcessingService(
             PaymentDirectory paymentDirectory,
@@ -58,17 +63,47 @@ public class PaymentProcessingService {
     }
 
     public PaymentRecord processPayment(PaymentCommand command, BankUserPrincipal principal, String correlationId) {
+        return processPayment(command, principal, correlationId, null);
+    }
+
+    public PaymentRecord processPayment(PaymentCommand command, BankUserPrincipal principal, String correlationId, String idempotencyKey) {
         if ("AUDITOR".equals(principal.role())) {
             throw new ResponseStatusException(FORBIDDEN, "Auditors can review payments but cannot create them");
         }
 
+        if (idempotencyKey == null || idempotencyKey.isBlank()) {
+            return executePayment(command, principal, correlationId, null);
+        }
+
+        String lockKey = principal.username() + "::" + idempotencyKey;
+        Object monitor = idempotencyMonitors.computeIfAbsent(lockKey, ignored -> new Object());
+        try {
+            synchronized (monitor) {
+                PaymentRecord existing = paymentDirectory.findIdempotentPayment(principal.username(), idempotencyKey);
+                if (existing != null) {
+                    return existing;
+                }
+
+                return executePayment(command, principal, correlationId, idempotencyKey);
+            }
+        } finally {
+            idempotencyMonitors.remove(lockKey, monitor);
+        }
+    }
+
+    private PaymentRecord executePayment(PaymentCommand command, BankUserPrincipal principal, String correlationId, String idempotencyKey) {
         InternalAccountVerification account = verifyAccount(command.debtorAccountId(), correlationId);
         ensureCallerCanUseAccount(principal, account);
 
         InternalCustomerEligibility customer = loadCustomerEligibility(account.ownerUsername(), correlationId);
         ensureCustomerEligible(principal, customer);
 
+        debitPayment(command, correlationId);
         PaymentRecord payment = paymentDirectory.createPayment(command, account.ownerUsername());
+
+        if (idempotencyKey != null && !idempotencyKey.isBlank()) {
+            paymentDirectory.rememberIdempotentPayment(principal.username(), idempotencyKey, payment, correlationId);
+        }
 
         recordAuditEvent(
                 new InternalAuditEventRequest(
@@ -94,6 +129,29 @@ public class PaymentProcessingService {
 
         if (!account.ownerUsername().equals(principal.username())) {
             throw new ResponseStatusException(FORBIDDEN, "You are not allowed to create a payment from this account");
+        }
+    }
+
+    private void debitPayment(PaymentCommand command, String correlationId) {
+        InternalHttpResponse response = sendWithRetry(
+                withJsonBody(
+                        baseRequest(accountServiceUrl + "/internal/accounts/payments/debit", correlationId),
+                        new InternalPaymentDebitRequest(
+                                command.debtorAccountId(),
+                                command.amount(),
+                                command.currency()
+                        )
+                ),
+                "account-service payment debit"
+        );
+
+        switch (response.statusCode()) {
+            case 200 -> {
+            }
+            case 404 -> throw new ResponseStatusException(NOT_FOUND, "Debtor account not found");
+            case 400 -> throw new ResponseStatusException(BAD_REQUEST, "Payment rejected by account-service posting rules");
+            case 409 -> throw new ResponseStatusException(CONFLICT, "Payment rejected because the debtor account has insufficient funds");
+            default -> throw new ResponseStatusException(BAD_GATEWAY, "Account payment debit failed via account-service");
         }
     }
 
@@ -206,6 +264,7 @@ public class PaymentProcessingService {
 
     private record InternalAccountVerification(
             String accountId,
+            String iban,
             String ownerUserId,
             String ownerUsername,
             String ownerName,
@@ -213,6 +272,13 @@ public class PaymentProcessingService {
             String type,
             String status,
             String balance
+    ) {
+    }
+
+    private record InternalPaymentDebitRequest(
+            String debtorAccountId,
+            String amount,
+            String currency
     ) {
     }
 

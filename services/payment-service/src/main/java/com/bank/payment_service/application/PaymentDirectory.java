@@ -1,62 +1,108 @@
 package com.bank.payment_service.application;
 
 import com.bank.payment_service.security.BankUserPrincipal;
+import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 
 import static org.springframework.http.HttpStatus.NOT_FOUND;
 
 @Service
 public class PaymentDirectory {
 
-    private final Map<String, List<PaymentRecord>> paymentsByUsername = new ConcurrentHashMap<>();
+    private final PaymentRepository paymentRepository;
+    private final PaymentIdempotencyRepository paymentIdempotencyRepository;
 
-    public PaymentDirectory() {
-        paymentsByUsername.put("lena.meyer", new ArrayList<>(List.of(
-                new PaymentRecord("pay-1001", "acc-chf-001", "lena.meyer", "Swisscom", "INV-2026-7781", "129.90", "CHF", "2026-04-12", "SCHEDULED", "2026-04-09"),
-                new PaymentRecord("pay-1002", "acc-chf-002", "lena.meyer", "ZVV", "ABO-2026-04", "87.00", "CHF", "2026-04-02", "BOOKED", "2026-03-30")
-        )));
+    public PaymentDirectory(PaymentRepository paymentRepository, PaymentIdempotencyRepository paymentIdempotencyRepository) {
+        this.paymentRepository = paymentRepository;
+        this.paymentIdempotencyRepository = paymentIdempotencyRepository;
     }
 
     public List<PaymentRecord> findPaymentsFor(BankUserPrincipal principal) {
-        return List.copyOf(paymentsByUsername.getOrDefault(principal.username(), List.of()));
+        return paymentRepository.findByOwnerUsernameOrderByIdDesc(principal.username()).stream()
+                .map(this::toRecord)
+                .toList();
     }
 
     public PaymentRecord findAuthorizedPayment(String paymentId, BankUserPrincipal principal) {
-        return paymentsByUsername.values().stream()
-                .flatMap(List::stream)
-                .filter(payment -> payment.paymentId().equals(paymentId))
-                .filter(payment -> canAccess(principal, payment.ownerUsername()))
-                .findFirst()
+        return lookupAuthorizedEntity(paymentId, principal)
+                .map(this::toRecord)
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Payment not found"));
     }
 
+    public PaymentRecord findIdempotentPayment(String requesterUsername, String idempotencyKey) {
+        return paymentIdempotencyRepository.findByRequesterUsernameAndIdempotencyKey(requesterUsername, idempotencyKey)
+                .flatMap(entity -> paymentRepository.findByPaymentId(entity.getPaymentId()))
+                .map(this::toRecord)
+                .orElse(null);
+    }
+
+    @Transactional
     public PaymentRecord createPayment(PaymentCommand command, String ownerUsername) {
-        PaymentRecord payment = new PaymentRecord(
+        PaymentEntity payment = new PaymentEntity(
                 "pay-" + UUID.randomUUID().toString().substring(0, 8),
                 command.debtorAccountId(),
                 ownerUsername,
                 command.billerName(),
                 command.billerReference(),
-                command.amount(),
+                parseAmount(command.amount()),
                 command.currency(),
-                command.scheduleDate(),
-                "SUBMITTED",
-                LocalDate.now().toString()
+                LocalDate.parse(command.scheduleDate()),
+                "BOOKED",
+                LocalDate.now()
         );
 
-        paymentsByUsername.computeIfAbsent(ownerUsername, ignored -> new ArrayList<>()).add(0, payment);
-        return payment;
+        return toRecord(paymentRepository.save(payment));
+    }
+
+    @Transactional
+    public void rememberIdempotentPayment(String requesterUsername, String idempotencyKey, PaymentRecord payment, String correlationId) {
+        paymentIdempotencyRepository.save(new PaymentIdempotencyEntity(
+                requesterUsername,
+                idempotencyKey,
+                payment.paymentId(),
+                payment.status(),
+                parseAmount(payment.amount()),
+                payment.currency(),
+                correlationId
+        ));
     }
 
     private boolean canAccess(BankUserPrincipal principal, String ownerUsername) {
         return "OPS".equals(principal.role()) || "AUDITOR".equals(principal.role()) || ownerUsername.equals(principal.username());
+    }
+
+    private java.util.Optional<PaymentEntity> lookupAuthorizedEntity(String paymentId, BankUserPrincipal principal) {
+        return paymentRepository.findByPaymentId(paymentId)
+                .filter(payment -> canAccess(principal, payment.getOwnerUsername()));
+    }
+
+    private PaymentRecord toRecord(PaymentEntity entity) {
+        return new PaymentRecord(
+                entity.getPaymentId(),
+                entity.getDebtorAccountId(),
+                entity.getOwnerUsername(),
+                entity.getBillerName(),
+                entity.getBillerReference(),
+                formatAmount(entity.getAmount()),
+                entity.getCurrency(),
+                entity.getScheduleDate().toString(),
+                entity.getStatus(),
+                entity.getCreatedAt().toString()
+        );
+    }
+
+    private BigDecimal parseAmount(String amount) {
+        return new BigDecimal(amount).setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private String formatAmount(BigDecimal amount) {
+        return amount.setScale(2, RoundingMode.HALF_UP).toPlainString();
     }
 }
