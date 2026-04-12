@@ -6,6 +6,7 @@ import com.bank.transaction_service.application.TransferCommand;
 import com.bank.transaction_service.application.TransferResult;
 import com.bank.transaction_service.application.TransferProcessingService;
 import com.bank.transaction_service.security.BankUserPrincipal;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.validation.Valid;
@@ -78,6 +79,9 @@ public class TransactionController {
     public TransferResponse createTransfer(
             @Valid @RequestBody TransferRequest request,
             @RequestHeader(value = "X-Correlation-Id", required = false) String correlationId,
+            @Parameter(
+                    description = "Optional idempotency key. If omitted, the service still protects identical rapid double-clicks and blocks the third rapid retry for 1 minute."
+            )
             @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
             Authentication authentication
     ) {

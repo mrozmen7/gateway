@@ -15,6 +15,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
@@ -24,6 +25,7 @@ import static org.springframework.http.HttpStatus.CONFLICT;
 import static org.springframework.http.HttpStatus.FORBIDDEN;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
 import static org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE;
+import static org.springframework.http.HttpStatus.TOO_MANY_REQUESTS;
 
 @Service
 public class TransferProcessingService {
@@ -38,6 +40,8 @@ public class TransferProcessingService {
     private final Duration requestTimeout;
     private final int maxAttempts;
     private final ConcurrentMap<String, Object> idempotencyMonitors = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, RapidRepeatGuard> rapidRepeatGuards = new ConcurrentHashMap<>();
+    private static final Duration RAPID_REPEAT_WINDOW = Duration.ofMinutes(1);
 
     public TransferProcessingService(
             TransactionLedger transactionLedger,
@@ -72,7 +76,7 @@ public class TransferProcessingService {
         }
 
         if (idempotencyKey == null || idempotencyKey.isBlank()) {
-            return executeTransfer(command, principal, correlationId, null);
+            return protectRapidRepeat(command, principal, correlationId);
         }
 
         String lockKey = principal.username() + "::" + idempotencyKey;
@@ -88,6 +92,53 @@ public class TransferProcessingService {
             }
         } finally {
             idempotencyMonitors.remove(lockKey, monitor);
+        }
+    }
+
+    private TransferResult protectRapidRepeat(TransferCommand command, BankUserPrincipal principal, String correlationId) {
+        String fingerprint = principal.username()
+                + "::"
+                + command.fromAccountId()
+                + "::"
+                + command.toIban()
+                + "::"
+                + command.amount()
+                + "::"
+                + command.currency()
+                + "::"
+                + command.description();
+
+        Object monitor = idempotencyMonitors.computeIfAbsent(fingerprint, ignored -> new Object());
+        try {
+            synchronized (monitor) {
+                Instant now = Instant.now();
+                RapidRepeatGuard current = rapidRepeatGuards.get(fingerprint);
+                RapidRepeatGuard guard = current == null || current.windowExpired(now)
+                        ? new RapidRepeatGuard(now, 0, null)
+                        : current;
+
+                int nextAttemptCount = guard.attemptCount() + 1;
+
+                if (guard.cachedResult() != null && nextAttemptCount == 2) {
+                    RapidRepeatGuard updated = guard.withAttemptCount(nextAttemptCount);
+                    rapidRepeatGuards.put(fingerprint, updated);
+                    return updated.cachedResult();
+                }
+
+                if (nextAttemptCount >= 3) {
+                    rapidRepeatGuards.put(fingerprint, guard.withAttemptCount(nextAttemptCount));
+                    throw new ResponseStatusException(
+                            TOO_MANY_REQUESTS,
+                            "Ayni transfer cok kisa surede 3 kez denendi. Lutfen 1 dakika bekleyip tekrar deneyin."
+                    );
+                }
+
+                TransferResult result = executeTransfer(command, principal, correlationId, null);
+                rapidRepeatGuards.put(fingerprint, new RapidRepeatGuard(guard.windowStartedAt(), nextAttemptCount, result));
+                return result;
+            }
+        } finally {
+            idempotencyMonitors.remove(fingerprint, monitor);
         }
     }
 
@@ -332,5 +383,19 @@ public class TransferProcessingService {
             String correlationId,
             String details
     ) {
+    }
+
+    private record RapidRepeatGuard(
+            Instant windowStartedAt,
+            int attemptCount,
+            TransferResult cachedResult
+    ) {
+        private boolean windowExpired(Instant now) {
+            return windowStartedAt.plus(RAPID_REPEAT_WINDOW).isBefore(now);
+        }
+
+        private RapidRepeatGuard withAttemptCount(int nextAttemptCount) {
+            return new RapidRepeatGuard(windowStartedAt, nextAttemptCount, cachedResult);
+        }
     }
 }
