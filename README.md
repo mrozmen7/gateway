@@ -1,138 +1,413 @@
 # Gateway Pattern Banking Platform
 
-## Project Vision
+Production-style digital banking platform built to teach how a serious microservice system is designed, secured, observed, tested, and explained.
 
-This repository contains a production-style digital banking platform built to teach API Gateway and Microservices from the ground up.
+## Why This Repository Exists
 
-The goal is not to build a toy CRUD project. The goal is to learn how a real engineering team in a bank would think about:
+Most gateway and microservice tutorials stop at CRUD and a reverse proxy. Real companies do not.
 
-- service boundaries
-- API Gateway responsibilities
-- authentication and authorization
-- payment and transaction flows
-- audit and compliance
-- event-driven integration
-- infrastructure and operational readiness
+This project is intentionally shaped like a small banking platform so we can learn:
 
-We are building this project in a way that supports learning from junior level to senior level.
+- where an `API Gateway` should help and where it should stay out of business logic
+- how service boundaries protect ownership and reduce chaos
+- why authentication, audit, idempotency, and traceability matter in financial systems
+- how synchronous business calls and asynchronous domain events work together
+- how observability, CI, and smoke validation turn code into an operable system
 
-## Why This Project Exists
+The goal is not to build a toy demo. The goal is to build a reference project that a hiring manager, senior engineer, or platform team can take seriously.
 
-In real banking systems, requests do not go directly from a mobile app to a database.
+## What The Platform Does
 
-Requests typically pass through an `API Gateway`, then reach multiple backend services that each own a specific business area.
+The system currently supports:
 
-This project exists to teach:
+- React frontend for client and operator workflows
+- frontend production container image with Nginx SPA routing and API proxy
+- login and JWT issuance through `identity-service`
+- self-service account creation through `account-service`
+- customer eligibility and KYC lookup through `customer-service`
+- transfer orchestration with double-entry ledgering through `transaction-service`
+- payment orchestration through `payment-service`
+- asynchronous audit event consumption through `audit-service`
+- asynchronous notification consumption through `notification-service`
+- service-specific `PostgreSQL` persistence in Docker Compose mode
+- `Kafka + Outbox Pattern` for safe domain event publication
+- `Prometheus + Grafana + Tempo + Loki` for metrics, traces, and logs
+- gateway-level `GET /api/v1/ops/platform-health` aggregation from `Actuator`, `Prometheus`, and `Kafka`
+- Playwright E2E smoke tests for critical frontend journeys
+- Kubernetes application-layer manifests for deployment handoff
 
-- why we split systems into services
-- when a gateway should be used
-- what belongs in the gateway and what does not
-- how banking systems handle security, state, and audit
-- how teams document architecture decisions before building too much code
+## High-Level Architecture
 
-## Current Phase
+```mermaid
+flowchart LR
+    Client["Client / Swagger / Mobile"] --> Gateway["API Gateway"]
 
-We are in `Phase 5: Service-to-Service Communication`.
+    Gateway --> Identity["Identity Service"]
+    Gateway --> Account["Account Service"]
+    Gateway --> Customer["Customer Service"]
+    Gateway --> Transaction["Transaction Service"]
+    Gateway --> Payment["Payment Service"]
+    Gateway --> Audit["Audit Service"]
+    Gateway --> Notification["Notification Service"]
 
-At this stage we are:
+    Transaction --> Account
+    Transaction --> Customer
+    Payment --> Account
+    Payment --> Customer
 
-- keeping the gateway as the single entry point
-- authenticating through `identity-service`
-- serving protected profile data through `customer-service`
-- serving protected balances through `account-service`
-- serving transaction history and transfer creation through `transaction-service`
-- serving payment history and payment creation through `payment-service`
-- serving audit feeds through `audit-service`
-- verifying debtor accounts from `transaction-service` and `payment-service` via internal `account-service` APIs
-- verifying customer eligibility and KYC via internal `customer-service` APIs
-- persisting transfer and payment audit events through internal `audit-service` APIs
-- applying timeout, retry, and correlation propagation in synchronous downstream calls
+    Transaction --> TxDb[("Transaction DB")]
+    Payment --> PayDb[("Payment DB")]
+    Account --> AccDb[("Account DB")]
+    Audit --> AuditDb[("Audit DB")]
+    Notification --> NotifDb[("Notification DB")]
 
-We are still using in-memory business data so that the learning focus stays on service boundaries, orchestration, and runtime flow before moving to persistent storage and event-driven consistency.
+    Transaction --> Outbox["Transfer Outbox"]
+    Payment --> Outbox2["Payment Outbox"]
+    Outbox --> Kafka["Kafka"]
+    Outbox2 --> Kafka
+    Kafka --> Audit
+    Kafka --> Notification
+
+    Prom["Prometheus"] --> Gateway
+    Prom --> Identity
+    Prom --> Account
+    Prom --> Customer
+    Prom --> Transaction
+    Prom --> Payment
+    Prom --> Audit
+    Prom --> Notification
+
+    Logs["Loki"] --> Grafana["Grafana"]
+    Traces["Tempo"] --> Grafana
+    Prom --> Grafana
+```
+
+## Service Boundaries
+
+### `api-gateway`
+
+Single client entry point.
+
+Responsibilities:
+
+- routing
+- shared traffic policy
+- token-aware edge behavior
+- correlation propagation
+
+### `identity-service`
+
+Authentication boundary.
+
+Responsibilities:
+
+- username/password authentication
+- JWT creation
+- current-user resolution from bearer token
+
+### `account-service`
+
+Account and balance boundary.
+
+Responsibilities:
+
+- account creation
+- account lookup
+- IBAN ownership
+- debit/credit posting
+
+### `customer-service`
+
+Customer eligibility boundary.
+
+Responsibilities:
+
+- customer profile
+- KYC state
+- risk rating
+- transfer/payment eligibility support
+
+### `transaction-service`
+
+Transfer orchestration boundary.
+
+Responsibilities:
+
+- source account verification
+- target IBAN verification
+- transfer settlement initiation
+- double-entry ledger records
+- idempotency and rapid duplicate protection
+- transfer domain event publication
+
+### `payment-service`
+
+Payment orchestration boundary.
+
+Responsibilities:
+
+- debtor account verification
+- payment debit orchestration
+- idempotency handling
+- payment domain event publication
+
+### `audit-service`
+
+Compliance and audit boundary.
+
+Responsibilities:
+
+- audit feed
+- security/event history
+- asynchronous event consumption
+
+### `notification-service`
+
+User communication boundary.
+
+Responsibilities:
+
+- transfer/payment notification feed
+- asynchronous event consumption
+
+## Runtime Stack
+
+### Business and Infrastructure
+
+- `Spring Boot 4`
+- `Spring Security`
+- `Spring Data JPA`
+- `PostgreSQL`
+- `Kafka`
+- `Docker Compose`
+
+### Observability
+
+- `Prometheus` for metrics collection
+- `Grafana` for dashboards
+- `Tempo` for traces
+- `Loki` for logs
+- `Promtail` for log shipping
+- `OpenTelemetry` for distributed tracing
+
+## Reference Roadmap
+
+The project-finishing roadmap is organized into four phases:
+
+- `Phase A: Runtime Proof`
+  - end-to-end validation
+  - dashboard provisioning
+  - metrics, logs, and traces correlation
+- `Phase B: Presentation Layer`
+  - stronger README
+  - architecture and demo storytelling
+  - clearer onboarding and portfolio value
+- `Phase C: Engineering Discipline`
+  - CI pipeline
+  - integration and service-level tests
+  - smoke validation automation
+- `Phase D: Advanced Platform`
+  - optional Redis
+  - resilience patterns
+  - Kubernetes-oriented evolution
+
+Detailed roadmap:
+
+- [reference-roadmap.md](/Users/yvz.o/Desktop/projects/Geteway_Pattern/docs/architecture/reference-roadmap.md)
+- [fazA-runtime-proof-spec.md](/Users/yvz.o/Desktop/projects/Geteway_Pattern/specs/fazA-runtime-proof-spec.md)
+- [fazB-presentation-layer-spec.md](/Users/yvz.o/Desktop/projects/Geteway_Pattern/specs/fazB-presentation-layer-spec.md)
+- [fazC-engineering-discipline-spec.md](/Users/yvz.o/Desktop/projects/Geteway_Pattern/specs/fazC-engineering-discipline-spec.md)
+- [fazD-advanced-platform-spec.md](/Users/yvz.o/Desktop/projects/Geteway_Pattern/specs/fazD-advanced-platform-spec.md)
 
 ## Documentation Map
 
-This repository follows a documentation-first structure inspired by production-style backend projects.
+- [system-overview.md](/Users/yvz.o/Desktop/projects/Geteway_Pattern/docs/architecture/system-overview.md)
+- [system-design.md](/Users/yvz.o/Desktop/projects/Geteway_Pattern/docs/architecture/system-design.md)
+- [port-route-plan.md](/Users/yvz.o/Desktop/projects/Geteway_Pattern/docs/architecture/port-route-plan.md)
+- [faz4-business-flows.md](/Users/yvz.o/Desktop/projects/Geteway_Pattern/docs/architecture/faz4-business-flows.md)
+- [faz5-service-communication.md](/Users/yvz.o/Desktop/projects/Geteway_Pattern/docs/architecture/faz5-service-communication.md)
+- [faz6-platform-runtime.md](/Users/yvz.o/Desktop/projects/Geteway_Pattern/docs/architecture/faz6-platform-runtime.md)
+- [fazA-runtime-proof.md](/Users/yvz.o/Desktop/projects/Geteway_Pattern/docs/architecture/fazA-runtime-proof.md)
+- [demo-scenario.md](/Users/yvz.o/Desktop/projects/Geteway_Pattern/docs/architecture/demo-scenario.md)
+- [observability-investigation-playbook.md](/Users/yvz.o/Desktop/projects/Geteway_Pattern/docs/architecture/observability-investigation-playbook.md)
+- [service-catalog.md](/Users/yvz.o/Desktop/projects/Geteway_Pattern/docs/architecture/service-catalog.md)
+- [failure-scenarios.md](/Users/yvz.o/Desktop/projects/Geteway_Pattern/docs/architecture/failure-scenarios.md)
+- [security-foundation.md](/Users/yvz.o/Desktop/projects/Geteway_Pattern/docs/security/security-foundation.md)
+- [docs/adr](/Users/yvz.o/Desktop/projects/Geteway_Pattern/docs/adr)
 
-- architecture overview: [docs/architecture/system-overview.md](/Users/yvz.o/Desktop/projects/Geteway_Pattern/docs/architecture/system-overview.md)
-- detailed system design: [docs/architecture/system-design.md](/Users/yvz.o/Desktop/projects/Geteway_Pattern/docs/architecture/system-design.md)
-- port and route plan: [docs/architecture/port-route-plan.md](/Users/yvz.o/Desktop/projects/Geteway_Pattern/docs/architecture/port-route-plan.md)
-- phase 4 flow map: [docs/architecture/faz4-business-flows.md](/Users/yvz.o/Desktop/projects/Geteway_Pattern/docs/architecture/faz4-business-flows.md)
-- phase 5 service communication map: [docs/architecture/faz5-service-communication.md](/Users/yvz.o/Desktop/projects/Geteway_Pattern/docs/architecture/faz5-service-communication.md)
-- failure scenarios: [docs/architecture/failure-scenarios.md](/Users/yvz.o/Desktop/projects/Geteway_Pattern/docs/architecture/failure-scenarios.md)
-- service catalog: [docs/architecture/service-catalog.md](/Users/yvz.o/Desktop/projects/Geteway_Pattern/docs/architecture/service-catalog.md)
-- security foundation: [docs/security/security-foundation.md](/Users/yvz.o/Desktop/projects/Geteway_Pattern/docs/security/security-foundation.md)
-- architecture decisions: [docs/adr](/Users/yvz.o/Desktop/projects/Geteway_Pattern/docs/adr)
-- phase specifications: [specs](/Users/yvz.o/Desktop/projects/Geteway_Pattern/specs)
+## Quick Start
 
-## Core Services
+### 1. Build service jars
 
-### `api-gateway`
-Single entry point for client traffic.
+Each service is an independent Maven project. Package the jars before starting Docker Compose.
 
-Responsibilities:
+### 2. Start the platform
 
-- request routing
-- token validation
-- rate limiting later
-- correlation ID propagation later
-- central traffic policy enforcement
+```bash
+/usr/local/bin/docker compose -f infra/docker/docker-compose.yml up -d --build
+```
 
-### `identity-service`
-Authentication and identity boundary.
+### 3. Open the main UIs
 
-Responsibilities:
+- [React Frontend](http://localhost:5173)
+- [Grafana](http://localhost:3000)
+- [Prometheus](http://localhost:9090)
+- [Gateway Health](http://localhost:8090/actuator/health)
+- [Platform Health Aggregation](http://localhost:8090/api/v1/ops/platform-health)
+- [Identity Swagger](http://localhost:8081/swagger-ui/index.html)
+- [Account Swagger](http://localhost:8082/swagger-ui/index.html)
+- [Customer Swagger](http://localhost:8083/swagger-ui/index.html)
+- [Transaction Swagger](http://localhost:8084/swagger-ui/index.html)
+- [Payment Swagger](http://localhost:8085/swagger-ui/index.html)
+- [Audit Swagger](http://localhost:8086/swagger-ui/index.html)
+- [Notification Swagger](http://localhost:8087/swagger-ui/index.html)
 
-- login
-- token issuing
-- user identity verification
-- role and permission model later
+### 4. Run the banking smoke test
 
-### `customer-service`
-Customer profile boundary.
+```bash
+/bin/zsh infra/local/phase6-banking-smoke-test.sh
+```
 
-Responsibilities:
+### 5. Run the runtime-proof check
 
-- customer information
-- onboarding profile data
-- KYC-related basic attributes later
+```bash
+/bin/zsh infra/local/phaseA-runtime-proof.sh
+```
 
-### `account-service`
-Account boundary.
+### 6. Run the frontend locally
 
-Responsibilities:
+```bash
+cd frontend
+pnpm install
+pnpm msw:init
+pnpm dev --host 127.0.0.1
+```
 
-- bank accounts
-- balances
-- account status
-- self-service account creation for local learning flows
+The frontend is configured by `frontend/.env.local`.
 
-### `transaction-service`
-Transaction ledger boundary.
+- `VITE_USE_MOCKS=false` connects the UI to the real API Gateway.
+- `VITE_API_GATEWAY_URL=http://localhost:8090` points the browser to the backend.
 
-Responsibilities:
+### 7. Run frontend checks
 
-- transfer initiation
-- transaction history
-- transaction state handling
+```bash
+cd frontend
+pnpm typecheck
+pnpm build
+pnpm e2e
+```
 
-### `payment-service`
-Payment flow boundary.
+The E2E suite uses `frontend/.env.e2e`, so it can validate the UI flow against mock data without requiring the full backend stack.
 
-Responsibilities:
+### 8. Build the frontend container
 
-- payment initiation
-- payment orchestration
-- idempotency handling later
+```bash
+docker build -t banking-platform/frontend:latest frontend
+```
 
-### `audit-service`
-Audit and compliance boundary.
+### 9. Review Kubernetes manifests
 
-Responsibilities:
+```bash
+kubectl apply --dry-run=client -f infra/k8s/base
+```
 
-- audit trail
-- security event storage
-- compliance-friendly record keeping
+The Kubernetes manifests are application-layer deployment artefacts. They assume managed PostgreSQL, Kafka, and observability services are provided by the target platform.
+
+## Operator Platform Health
+
+The operator screen reads:
+
+```text
+GET /api/v1/ops/platform-health
+```
+
+That endpoint is intentionally owned by `api-gateway` because it is a platform-level aggregation endpoint, not a business capability owned by one domain service.
+
+It combines:
+
+- `Spring Boot Actuator` health for service reachability
+- `Prometheus` queries for request rate, latency percentile, uptime, and error rate
+- `Kafka AdminClient` consumer group lag for async consumers
+
+If Prometheus or Kafka is temporarily unavailable, the endpoint still answers with Actuator fallback data instead of breaking the operator UI.
+
+## Security Event Stream
+
+The `api-gateway` publishes one API security event for every completed gateway request.
+Events are sent to Kafka topic `api-events` and form the data foundation for the upcoming risk-service.
+
+Topic:
+
+```text
+api-events
+```
+
+Event contract:
+
+```json
+{
+  "eventId": "b4f8d8c6-94d1-4e34-a3a6-4e08391f3f5f",
+  "timestamp": "2026-04-26T10:15:30.123Z",
+  "correlationId": "3b41b6e5-7395-4d0f-8e32-7dfd75d4fd4b",
+  "userId": "cust-1002",
+  "username": "yavuz",
+  "role": "CUSTOMER",
+  "ipAddress": "127.0.0.1",
+  "userAgent": "Mozilla/5.0 ...",
+  "endpoint": "/api/v1/accounts/me",
+  "httpMethod": "GET",
+  "statusCode": 200,
+  "responseTimeMs": 34,
+  "serviceName": "api-gateway"
+}
+```
+
+Why it exists:
+
+- it turns live API traffic into a security data stream
+- it keeps request identity, endpoint, status, latency, and correlation metadata together
+- it gives the future risk-service a stable event contract
+- it supports auditability without putting risk logic inside the gateway
+
+## Demo Story
+
+The strongest demo path is:
+
+1. login as `yavuz`
+2. create Yavuz account
+3. login as `fatih`
+4. create Fatih account
+5. transfer from Yavuz to Fatih using Fatih's real IBAN
+6. create a payment from Fatih
+7. verify audit and notification side effects
+8. prove the traffic in Prometheus, logs in Loki, and traces in Tempo
+9. switch to the React operator workspace and confirm `Platform health` shows live gateway aggregation
+
+Detailed walkthrough:
+
+- [demo-scenario.md](/Users/yvz.o/Desktop/projects/Geteway_Pattern/docs/architecture/demo-scenario.md)
+
+## Why Companies Use These Patterns
+
+### `API Gateway`
+
+Companies use a gateway to centralize traffic entry, enforce shared policy, and keep client-facing routing simple.
+
+### `Database per Service`
+
+Companies use service-owned databases to protect ownership and reduce accidental cross-team coupling.
+
+### `Outbox Pattern`
+
+Companies use outbox to avoid the dangerous case where business data is saved but the domain event is lost.
+
+### `Idempotency`
+
+Companies use idempotency to stop duplicate transfers or payments when users double-click or clients retry after timeouts.
+
+### `Observability`
+
+Companies use metrics, logs, and traces together because production incidents are rarely solved from one signal alone.
 
 ## Repository Structure
 
@@ -144,6 +419,7 @@ Geteway_Pattern/
     security/
   infra/
     docker/
+    k8s/
     local/
   services/
     api-gateway/
@@ -153,67 +429,51 @@ Geteway_Pattern/
     transaction-service/
     payment-service/
     audit-service/
+    notification-service/
 ```
 
 ## Key Terms
 
 ### `API Gateway`
-The front door of the system. Clients send requests here first.
+
+The front door of the system. Clients talk to this first.
 
 ### `Microservice`
+
 A service that owns one clear responsibility and can evolve independently.
 
 ### `Service Boundary`
-The limit of what a service is responsible for. Clear boundaries reduce chaos.
+
+The explicit line that says what a service owns and what it does not own.
 
 ### `Authentication`
-Verifying who a user is.
+
+Verifying who the caller is.
 
 ### `Authorization`
-Checking what an authenticated user is allowed to do.
+
+Checking what an authenticated caller is allowed to do.
 
 ### `Audit`
+
 Keeping trustworthy records of critical actions.
 
 ### `Idempotency`
-Making sure the same request does not produce the same payment or transfer twice.
 
-## Working Principles
+Making the same request safe to repeat without duplicating money movement.
 
-- document important decisions
-- keep service responsibilities clear
-- do not put business logic in the gateway
-- design for traceability and auditability
-- prefer professional clarity over quick hacks
+### `Observability`
 
-## Local Verification
+Understanding a running system through metrics, logs, and traces.
 
-We now keep a local smoke test script for the Phase 5 orchestration flow:
+## Engineering Rules
 
-- [infra/local/phase5-smoke-test.sh](/Users/yvz.o/Desktop/projects/Geteway_Pattern/infra/local/phase5-smoke-test.sh)
+- keep business logic out of the gateway
+- document architectural decisions
+- design for auditability and traceability
+- prefer reproducible automation over manual steps
+- treat the README as part of the product
 
-This script logs in through the gateway, creates a transfer, creates a payment, and verifies that the resulting audit events are visible through the audit feed.
-
-## Repository Rules
-
-The repository-level engineering rules live in:
+Repository-level engineering rules:
 
 - [CLAUDE.md](/Users/yvz.o/Desktop/projects/Geteway_Pattern/CLAUDE.md)
-
-This file explains:
-
-- repository structure
-- module responsibilities
-- documentation expectations
-- security rules
-- coding discipline we want to keep throughout the project
-
-## What Comes Next
-
-Next steps after these business flows:
-
-1. introduce Docker Compose based local orchestration
-2. add distributed tracing, structured logs, and metrics
-3. move critical flows toward Kafka and event-driven integration
-4. introduce persistence, idempotency, and stronger production hardening
-5. deepen failure handling with circuit breakers and contract tests
