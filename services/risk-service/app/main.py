@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.feature_store import build_feature_store
 from app.kafka_consumer import ApiEventConsumer
+from app.ml_model import load_anomaly_model
 from app.models import ApiEvent, HealthResponse, RiskEvaluation, ServiceStats
 from app.risk_engine import evaluate_event
 from app.settings import settings
@@ -15,7 +16,13 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 
 state = RiskState(maxlen=settings.event_buffer_size)
 feature_store = build_feature_store(settings)
-consumer = ApiEventConsumer(settings=settings, state=state, feature_store=feature_store)
+anomaly_model = load_anomaly_model(settings.model_path, settings.model_version)
+consumer = ApiEventConsumer(
+    settings=settings,
+    state=state,
+    feature_store=feature_store,
+    anomaly_model=anomaly_model,
+)
 
 
 @asynccontextmanager
@@ -49,13 +56,21 @@ def health() -> HealthResponse:
         kafkaTopic=settings.api_events_topic,
         featureStore=feature_store.name,
         consumedEvents=state.consumed_events(),
+        modelVersion=anomaly_model.version,
+        modelStatus=anomaly_model.status,
     )
 
 
 @app.post("/risk/evaluate", response_model=RiskEvaluation)
 def risk_evaluate(event: ApiEvent) -> RiskEvaluation:
     features = feature_store.record_and_extract(event)
-    decision = evaluate_event(event, features)
+    decision = evaluate_event(
+        event,
+        features,
+        anomaly_model=anomaly_model,
+        rule_weight=settings.rule_weight,
+        ml_weight=settings.ml_weight,
+    )
     state.record(event, decision)
     return decision
 

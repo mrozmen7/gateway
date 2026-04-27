@@ -371,7 +371,7 @@ Why it exists:
 
 ## Risk Service
 
-The `risk-service` is a Python FastAPI service that consumes gateway API events from Kafka and produces an explainable risk decision.
+The `risk-service` is a Python FastAPI service that consumes gateway API events from Kafka and produces an explainable AI-augmented risk decision.
 It uses Redis as a real-time feature store so each decision can include recent behavior, not only the current request.
 In this phase it observes and evaluates traffic only; it does not block gateway requests yet.
 
@@ -392,15 +392,23 @@ http://localhost:8091/risk/stats
 http://localhost:8091/risk/decisions?limit=10
 ```
 
-Initial decision levels:
+Decision levels:
 
 ```text
 allow   -> normal request
 monitor -> elevated but not critical
 review  -> suspicious enough for operator review
+step_up -> high risk; future gateway phase should require MFA/SCA
+block   -> critical risk; future gateway phase can temporarily deny
 ```
 
-The first rule-based scoring layer considers:
+The composite score combines two signals:
+
+```text
+riskScore = 0.60 * ruleScore + 0.40 * mlScore
+```
+
+`ruleScore` is deterministic and explainable. It considers:
 
 - HTTP status code
 - gateway response time
@@ -414,13 +422,33 @@ The first rule-based scoring layer considers:
 - rapid repeat requests
 - off-hours sensitive access
 
+`mlScore` is produced by a versioned anomaly profile under:
+
+```text
+services/risk-service/models/v1.0.0/
+  model.json
+  feature_schema.json
+  metrics.json
+  model_card.md
+```
+
+The model is trained from deterministic synthetic banking API traffic:
+
+```bash
+cd services/risk-service
+PYTHONPATH=. python scripts/train_anomaly_model.py
+```
+
+This is intentionally described as AI-augmented anomaly detection, not a production fraud model. The output remains audit-friendly because each decision includes `ruleScore`, `mlScore`, `modelVersion`, `reasons`, and `topFactors`.
+
 Redis feature keys are TTL-based and intentionally short-lived. This keeps the system fast and privacy-aware for local demo purposes.
 
 Why it exists:
 
 - it separates security analysis from request routing
 - it lets Java microservices keep business ownership while Python owns risk intelligence
-- it creates a clear extension point for ML anomaly detection and adaptive gateway response in later phases
+- it adds a versioned ML anomaly signal without hiding the deterministic rule score
+- it creates a clear extension point for adaptive gateway response in later phases
 - it keeps decisions explainable, which matters for banking audit and compliance-aware systems
 
 ## Demo Story
@@ -467,7 +495,8 @@ flowchart LR
   Gateway --> Kafka["Kafka topic: api-events"]
   Kafka --> Risk["risk-service (FastAPI)"]
   Risk --> Redis["Redis feature store"]
-  Risk --> Decisions["allow / monitor / review"]
+  Risk --> Model["ML anomaly profile v1.0.0"]
+  Risk --> Decisions["allow / monitor / review / step_up / block"]
   Transaction --> DomainKafka["Kafka domain events"]
   Payment --> DomainKafka
   DomainKafka --> Audit["audit-service"]
@@ -491,8 +520,11 @@ Example decision:
 {
   "endpoint": "/api/v1/accounts/me",
   "riskScore": 0.30,
+  "ruleScore": 0.22,
+  "mlScore": 0.42,
   "decision": "monitor",
-  "topFactors": ["elevated_request_frequency", "rapid_repeat_request"],
+  "modelVersion": "v1.0.0",
+  "topFactors": ["request_count_1m", "elevated_request_frequency"],
   "features": {
     "requestCount1m": 12,
     "failedRequestCount5m": 0,

@@ -223,8 +223,9 @@ const RiskDecisionRow = ({ decision }: { decision: RiskDecisionEntry }) => (
   <div
     className={cn(
       'rule-b py-4 grid gap-4 items-center',
-      'grid-cols-[minmax(220px,1.3fr)_minmax(120px,0.7fr)_minmax(140px,0.8fr)_minmax(190px,1fr)_auto]',
-      decision.decision === 'review' && 'bg-[color-mix(in_srgb,var(--color-debit)_6%,transparent)]',
+      'grid-cols-[minmax(220px,1.3fr)_minmax(120px,0.7fr)_minmax(120px,0.7fr)_minmax(120px,0.7fr)_minmax(210px,1fr)_auto]',
+      (decision.decision === 'review' || decision.decision === 'step_up' || decision.decision === 'block') &&
+        'bg-[color-mix(in_srgb,var(--color-debit)_6%,transparent)]',
       decision.decision === 'monitor' &&
         'bg-[color-mix(in_srgb,var(--color-warning)_5%,transparent)]',
     )}
@@ -241,9 +242,13 @@ const RiskDecisionRow = ({ decision }: { decision: RiskDecisionEntry }) => (
 
     <Metric label="decision" value={decision.decision} emphasis={decision.decision !== 'allow'} />
     <Metric
-      label="risk score"
+      label="final score"
       value={decision.riskScore.toFixed(2)}
       emphasis={decision.riskScore >= 0.3}
+    />
+    <Metric
+      label="rule / ML"
+      value={`${(decision.ruleScore ?? 0).toFixed(2)} / ${(decision.mlScore ?? 0).toFixed(2)}`}
     />
     <div className="min-w-0">
       <div className="text-[10px] uppercase tracking-[0.12em] text-ink-subtle mb-0.5">
@@ -254,7 +259,7 @@ const RiskDecisionRow = ({ decision }: { decision: RiskDecisionEntry }) => (
       </div>
       <div className="text-2xs text-ink-subtle font-mono mt-1">
         {decision.features.requestCount1m}/min · {decision.features.failedRequestCount5m} failed ·{' '}
-        {decision.features.source}
+        {decision.features.source} · model {decision.modelVersion ?? 'n/a'}
       </div>
     </div>
 

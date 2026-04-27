@@ -1,0 +1,9 @@
+{
+  "attackScoreP50": 1.0,
+  "normalScoreP95": 0.37,
+  "note": "Synthetic metrics are for portfolio/demo validation, not production claims.",
+  "syntheticFalsePositiveRate": 0.0,
+  "syntheticTruePositiveRate": 1.0,
+  "threshold": 0.6,
+  "version": "v1.0.0"
+}

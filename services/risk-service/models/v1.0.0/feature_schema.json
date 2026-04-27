@@ -1,0 +1,53 @@
+{
+  "features": [
+    {
+      "name": "request_count_1m",
+      "type": "number"
+    },
+    {
+      "name": "failed_request_count_5m",
+      "type": "number"
+    },
+    {
+      "name": "endpoint_diversity_5m",
+      "type": "number"
+    },
+    {
+      "name": "distinct_ip_count_by_user_5m",
+      "type": "number"
+    },
+    {
+      "name": "distinct_user_count_by_ip_5m",
+      "type": "number"
+    },
+    {
+      "name": "response_time_ms",
+      "type": "number"
+    },
+    {
+      "name": "status_code_bucket",
+      "type": "number"
+    },
+    {
+      "name": "seconds_since_last_request",
+      "type": "number"
+    },
+    {
+      "name": "off_hours",
+      "type": "number"
+    },
+    {
+      "name": "sensitive_endpoint",
+      "type": "number"
+    },
+    {
+      "name": "anonymous_non_actuator",
+      "type": "number"
+    },
+    {
+      "name": "non_get_method",
+      "type": "number"
+    }
+  ],
+  "version": "v1.0.0"
+}

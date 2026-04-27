@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from typing import Literal
 from uuid import uuid4
 
@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 
 class ApiEvent(BaseModel):
     eventId: str = Field(default_factory=lambda: str(uuid4()))
-    timestamp: str = Field(default_factory=lambda: datetime.now(UTC).isoformat())
+    timestamp: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     correlationId: str = "unknown"
     userId: str = "anonymous"
     username: str = "anonymous"
@@ -21,7 +21,7 @@ class ApiEvent(BaseModel):
     serviceName: str = "api-gateway"
 
 
-RiskDecision = Literal["allow", "monitor", "review"]
+RiskDecision = Literal["allow", "monitor", "review", "step_up", "block"]
 
 
 class RiskFeatures(BaseModel):
@@ -38,7 +38,7 @@ class RiskFeatures(BaseModel):
 
 class RiskEvaluation(BaseModel):
     decisionId: str = Field(default_factory=lambda: str(uuid4()))
-    evaluatedAt: str = Field(default_factory=lambda: datetime.now(UTC).isoformat())
+    evaluatedAt: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     eventId: str
     correlationId: str
     userId: str
@@ -46,11 +46,14 @@ class RiskEvaluation(BaseModel):
     ipAddress: str
     endpoint: str
     riskScore: float
+    ruleScore: float = 0.0
+    mlScore: float = 0.0
     decision: RiskDecision
     reasons: list[str]
     topFactors: list[str] = Field(default_factory=list)
     features: RiskFeatures = Field(default_factory=RiskFeatures)
-    source: str = "rule-based-v1"
+    source: str = "composite-risk-v1"
+    modelVersion: str = "none"
 
 
 class HealthResponse(BaseModel):
@@ -59,6 +62,8 @@ class HealthResponse(BaseModel):
     kafkaTopic: str
     featureStore: str
     consumedEvents: int
+    modelVersion: str
+    modelStatus: str
 
 
 class ServiceStats(BaseModel):

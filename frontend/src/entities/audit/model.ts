@@ -41,7 +41,7 @@ export interface ServiceStatus {
   readonly lastCheckedAt: string;
 }
 
-export type RiskDecision = 'allow' | 'monitor' | 'review';
+export type RiskDecision = 'allow' | 'monitor' | 'review' | 'step_up' | 'block';
 
 export interface RiskFeatures {
   readonly requestCount1m: number;
@@ -65,9 +65,12 @@ export interface RiskDecisionEntry {
   readonly ipAddress: string;
   readonly endpoint: string;
   readonly riskScore: number;
+  readonly ruleScore: number;
+  readonly mlScore: number;
   readonly decision: RiskDecision;
   readonly reasons: readonly string[];
   readonly topFactors: readonly string[];
   readonly features: RiskFeatures;
   readonly source: string;
+  readonly modelVersion: string;
 }

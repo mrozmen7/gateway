@@ -1,0 +1,48 @@
+{
+  "algorithm": "weighted_statistical_anomaly_profile",
+  "highRiskDistance": 33.3779,
+  "means": {
+    "anonymous_non_actuator": 0.0,
+    "distinct_ip_count_by_user_5m": 1.2516666666666667,
+    "distinct_user_count_by_ip_5m": 1.3425,
+    "endpoint_diversity_5m": 2.978061666666665,
+    "failed_request_count_5m": 0.24083333333333334,
+    "non_get_method": 0.24583333333333332,
+    "off_hours": 0.0575,
+    "request_count_1m": 3.9463716666666673,
+    "response_time_ms": 90.63558083333335,
+    "seconds_since_last_request": 19.476597499999986,
+    "sensitive_endpoint": 0.44083333333333335,
+    "status_code_bucket": 0.205
+  },
+  "stddevs": {
+    "anonymous_non_actuator": 0.001,
+    "distinct_ip_count_by_user_5m": 0.43397068513386655,
+    "distinct_user_count_by_ip_5m": 0.47454583551012836,
+    "endpoint_diversity_5m": 0.951492694593021,
+    "failed_request_count_5m": 0.4275893343956211,
+    "non_get_method": 0.4305801964275095,
+    "off_hours": 0.2327955111251092,
+    "request_count_1m": 1.8687715988131224,
+    "response_time_ms": 43.79195082120459,
+    "seconds_since_last_request": 14.139091219635054,
+    "sensitive_endpoint": 0.49648696413456433,
+    "status_code_bucket": 0.4037016224886859
+  },
+  "trainedOn": "synthetic banking API traffic",
+  "version": "v1.0.0",
+  "weights": {
+    "anonymous_non_actuator": 1.2,
+    "distinct_ip_count_by_user_5m": 1.3,
+    "distinct_user_count_by_ip_5m": 1.3,
+    "endpoint_diversity_5m": 1.15,
+    "failed_request_count_5m": 1.45,
+    "non_get_method": 0.55,
+    "off_hours": 0.5,
+    "request_count_1m": 1.25,
+    "response_time_ms": 0.55,
+    "seconds_since_last_request": 0.8,
+    "sensitive_endpoint": 0.65,
+    "status_code_bucket": 1.35
+  }
+}

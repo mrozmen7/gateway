@@ -21,7 +21,9 @@ class RiskEngineTest(unittest.TestCase):
         self.assertEqual("allow", decision.decision)
         self.assertLess(decision.riskScore, 0.30)
         self.assertIn("sensitive_endpoint", decision.reasons)
-        self.assertEqual("rule-based-v1", decision.source)
+        self.assertEqual("composite-risk-v1", decision.source)
+        self.assertEqual(0.10, decision.ruleScore)
+        self.assertEqual(0.0, decision.mlScore)
 
     def test_reviews_anonymous_failing_sensitive_request(self) -> None:
         decision = evaluate_event(
@@ -37,7 +39,8 @@ class RiskEngineTest(unittest.TestCase):
         )
 
         self.assertEqual("review", decision.decision)
-        self.assertGreaterEqual(decision.riskScore, 0.60)
+        self.assertGreaterEqual(decision.ruleScore, 0.60)
+        self.assertGreaterEqual(decision.riskScore, 0.30)
         self.assertIn("server_error_response", decision.reasons)
         self.assertIn("anonymous_non_actuator_request", decision.reasons)
 
@@ -64,7 +67,8 @@ class RiskEngineTest(unittest.TestCase):
             ),
         )
 
-        self.assertEqual("review", decision.decision)
+        self.assertEqual("step_up", decision.decision)
+        self.assertGreaterEqual(decision.ruleScore, 0.60)
         self.assertGreaterEqual(decision.riskScore, 0.60)
         self.assertIn("burst_request_frequency", decision.reasons)
         self.assertIn("repeated_failed_requests", decision.reasons)

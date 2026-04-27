@@ -1,11 +1,53 @@
+from app.ml_model import MlPrediction, NoopAnomalyModel
 from app.models import ApiEvent, RiskDecision, RiskEvaluation, RiskFeatures
 
 
-def evaluate_event(event: ApiEvent, features: RiskFeatures | None = None) -> RiskEvaluation:
+def evaluate_event(
+    event: ApiEvent,
+    features: RiskFeatures | None = None,
+    anomaly_model: NoopAnomalyModel | None = None,
+    rule_weight: float = 0.60,
+    ml_weight: float = 0.40,
+) -> RiskEvaluation:
     features = features or RiskFeatures()
+    rule_score, reasons = evaluate_rules(event, features)
+    ml_prediction = anomaly_model.predict(event, features) if anomaly_model else MlPrediction(
+        score=0.0,
+        top_factors=["ml_model_unavailable"],
+        model_version="none",
+        status="missing",
+    )
+
+    composite_score = min(round((rule_weight * rule_score) + (ml_weight * ml_prediction.score), 2), 1.0)
+    merged_reasons = reasons.copy()
+    if ml_prediction.score >= 0.60:
+        merged_reasons.append("ml_anomaly_detected")
+    elif ml_prediction.score >= 0.30:
+        merged_reasons.append("ml_elevated_anomaly_score")
+
+    top_factors = (merged_reasons + ml_prediction.top_factors)[:7] if merged_reasons else ml_prediction.top_factors
+
+    return RiskEvaluation(
+        eventId=event.eventId,
+        correlationId=event.correlationId,
+        userId=event.userId,
+        username=event.username,
+        ipAddress=event.ipAddress,
+        endpoint=event.endpoint,
+        riskScore=composite_score,
+        ruleScore=rule_score,
+        mlScore=ml_prediction.score,
+        decision=decision_for(composite_score),
+        reasons=merged_reasons or ["normal_request"],
+        topFactors=top_factors or ["normal_request"],
+        features=features,
+        modelVersion=ml_prediction.model_version,
+    )
+
+
+def evaluate_rules(event: ApiEvent, features: RiskFeatures) -> tuple[float, list[str]]:
     score = 0.0
     reasons: list[str] = []
-
     if event.statusCode >= 500:
         score += 0.30
         reasons.append("server_error_response")
@@ -59,28 +101,17 @@ def evaluate_event(event: ApiEvent, features: RiskFeatures | None = None) -> Ris
         score += 0.05
         reasons.append("off_hours_sensitive_access")
 
-    normalized_score = min(round(score, 2), 1.0)
-    top_factors = reasons[:5] if reasons else ["normal_request"]
-
-    return RiskEvaluation(
-        eventId=event.eventId,
-        correlationId=event.correlationId,
-        userId=event.userId,
-        username=event.username,
-        ipAddress=event.ipAddress,
-        endpoint=event.endpoint,
-        riskScore=normalized_score,
-        decision=decision_for(normalized_score),
-        reasons=reasons or ["normal_request"],
-        topFactors=top_factors,
-        features=features,
-    )
+    return min(round(score, 2), 1.0), reasons
 
 
 def decision_for(score: float) -> RiskDecision:
+    if score >= 0.85:
+        return "block"
     if score >= 0.60:
-        return "review"
+        return "step_up"
     if score >= 0.30:
+        return "review"
+    if score >= 0.15:
         return "monitor"
     return "allow"
 

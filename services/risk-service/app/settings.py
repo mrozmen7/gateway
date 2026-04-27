@@ -12,6 +12,10 @@ class Settings(BaseSettings):
     event_buffer_size: int = Field(default=100, alias="RISK_EVENT_BUFFER_SIZE")
     redis_url: str = Field(default="redis://localhost:6379/0", alias="REDIS_URL")
     feature_window_seconds: int = Field(default=300, alias="RISK_FEATURE_WINDOW_SECONDS")
+    model_path: str = Field(default="models/v1.0.0/model.json", alias="RISK_MODEL_PATH")
+    model_version: str = Field(default="v1.0.0", alias="RISK_MODEL_VERSION")
+    rule_weight: float = Field(default=0.60, alias="RISK_RULE_WEIGHT")
+    ml_weight: float = Field(default=0.40, alias="RISK_ML_WEIGHT")
     cors_allowed_origins: str = Field(
         default="http://localhost:5173,http://127.0.0.1:5173",
         alias="CORS_ALLOWED_ORIGINS",

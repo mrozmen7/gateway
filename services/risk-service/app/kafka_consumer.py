@@ -5,6 +5,7 @@ import threading
 from kafka import KafkaConsumer
 
 from app.feature_store import FeatureStore
+from app.ml_model import NoopAnomalyModel, StatisticalAnomalyModel
 from app.models import ApiEvent
 from app.risk_engine import evaluate_event
 from app.settings import Settings
@@ -14,10 +15,17 @@ log = logging.getLogger(__name__)
 
 
 class ApiEventConsumer:
-    def __init__(self, settings: Settings, state: RiskState, feature_store: FeatureStore) -> None:
+    def __init__(
+        self,
+        settings: Settings,
+        state: RiskState,
+        feature_store: FeatureStore,
+        anomaly_model: StatisticalAnomalyModel | NoopAnomalyModel,
+    ) -> None:
         self._settings = settings
         self._state = state
         self._feature_store = feature_store
+        self._anomaly_model = anomaly_model
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
 
@@ -64,14 +72,23 @@ class ApiEventConsumer:
     def _handle_message(self, value: dict) -> None:
         event = ApiEvent.model_validate(value)
         features = self._feature_store.record_and_extract(event)
-        decision = evaluate_event(event, features)
+        decision = evaluate_event(
+            event,
+            features,
+            anomaly_model=self._anomaly_model,
+            rule_weight=self._settings.rule_weight,
+            ml_weight=self._settings.ml_weight,
+        )
         self._state.record(event, decision)
         log.info(
-            "risk_evaluated event_id=%s user=%s endpoint=%s score=%.2f decision=%s feature_store=%s",
+            "risk_evaluated event_id=%s user=%s endpoint=%s score=%.2f rule=%.2f ml=%.2f decision=%s model=%s feature_store=%s",
             event.eventId,
             event.username,
             event.endpoint,
             decision.riskScore,
+            decision.ruleScore,
+            decision.mlScore,
             decision.decision,
+            decision.modelVersion,
             features.source,
         )

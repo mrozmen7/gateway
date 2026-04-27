@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import time
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from typing import Protocol
 
 from redis import Redis
@@ -140,8 +140,8 @@ def safe_key(value: str) -> str:
 
 def is_off_hours(timestamp: str) -> bool:
     try:
-        parsed = datetime.fromisoformat(timestamp.replace("Z", "+00:00")).astimezone(UTC)
+        parsed = datetime.fromisoformat(timestamp.replace("Z", "+00:00")).astimezone(timezone.utc)
     except ValueError:
-        parsed = datetime.now(UTC)
+        parsed = datetime.now(timezone.utc)
 
     return parsed.hour < 6 or parsed.hour >= 22
