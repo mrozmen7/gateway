@@ -1,0 +1,32 @@
+{
+  "brand": {
+    "name": "Helvetiq",
+    "tagline": "Privates digitales Banking."
+  },
+  "nav": {
+    "overview": "Übersicht",
+    "accounts": "Konten",
+    "move": "Zahlungen",
+    "cards": "Karten",
+    "documents": "Dokumente",
+    "security": "Sicherheit",
+    "support": "Support",
+    "ops": {
+      "root": "Plattform",
+      "health": "Servicestatus",
+      "customers": "Kunden",
+      "inspector": "Transaktionsinspektor",
+      "audit": "Audit-Protokoll"
+    }
+  },
+  "common": {
+    "loading": "Lädt",
+    "error": "Ein Fehler ist aufgetreten",
+    "retry": "Erneut versuchen",
+    "back": "Zurück",
+    "next": "Weiter",
+    "cancel": "Abbrechen",
+    "signOut": "Abmelden",
+    "search": "Suchen"
+  }
+}

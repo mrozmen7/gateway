@@ -1,0 +1,138 @@
+{
+  "brand": {
+    "name": "Helvetiq",
+    "tagline": "Private digital banking."
+  },
+  "nav": {
+    "overview": "Overview",
+    "accounts": "Accounts",
+    "move": "Move money",
+    "cards": "Cards",
+    "documents": "Documents",
+    "security": "Security",
+    "support": "Support",
+    "ops": {
+      "root": "Platform",
+      "health": "Service health",
+      "customers": "Customers",
+      "inspector": "Transaction inspector",
+      "audit": "Audit trail"
+    }
+  },
+  "auth": {
+    "login": {
+      "heading": "Sign in",
+      "subheading": "Access your private banking workspace.",
+      "email": "Email",
+      "password": "Password",
+      "submit": "Continue",
+      "hint": "Use any email and any password (min. 4 chars). Use ops@… to sign in as operator."
+    },
+    "mfa": {
+      "heading": "Two-step verification",
+      "subheading": "Enter the 6-digit code from your authenticator.",
+      "code": "Verification code",
+      "submit": "Verify",
+      "resend": "Resend code",
+      "sentTo": "Sent to {{target}}"
+    }
+  },
+  "overview": {
+    "heading": "Overview",
+    "subheading": "A summary of your holdings at Helvetiq.",
+    "netWorth": "Total net position",
+    "accounts": "Accounts",
+    "recentActivity": "Recent activity",
+    "viewAll": "View all"
+  },
+  "accounts": {
+    "kind": {
+      "current": "Current",
+      "savings": "Savings",
+      "investment": "Investment",
+      "pillar3": "Pillar 3a"
+    }
+  },
+  "transfer": {
+    "heading": "Transfer studio",
+    "subheading": "Move money between accounts, within Switzerland, or across SEPA.",
+    "steps": {
+      "details": "Details",
+      "review": "Review",
+      "confirm": "Confirm"
+    },
+    "fields": {
+      "from": "From account",
+      "to": "Recipient IBAN",
+      "toName": "Recipient name",
+      "amount": "Amount",
+      "reference": "Reference",
+      "note": "Note",
+      "rail": "Payment rail",
+      "when": "When"
+    },
+    "rails": {
+      "internal": "Internal — between your accounts",
+      "sepa": "SEPA — 1 business day",
+      "sepa_instant": "SEPA Instant — seconds",
+      "swift": "SWIFT — up to 3 business days",
+      "qr_bill": "Swiss QR-bill"
+    },
+    "review": {
+      "feeNone": "No fee",
+      "arrivalImmediate": "Arrives immediately",
+      "arrivalAt": "Estimated arrival {{when}}",
+      "quoteValidUntil": "Quote valid until {{when}}"
+    },
+    "confirm": {
+      "submit": "Confirm transfer",
+      "success": "Transfer submitted",
+      "successBody": "Your transfer is in flight. Reference {{id}}"
+    }
+  },
+  "ops": {
+    "health": {
+      "heading": "Platform health",
+      "subheading": "Live status of every service behind the API Gateway.",
+      "uptime": "Uptime",
+      "p50": "p50",
+      "p95": "p95",
+      "p99": "p99",
+      "rpm": "req / min",
+      "errorRate": "Error rate",
+      "kafkaLag": "Kafka lag"
+    },
+    "inspector": {
+      "heading": "Transaction inspector",
+      "subheading": "Follow a payment across the microservice mesh.",
+      "traceId": "Trace ID",
+      "lookup": "Inspect",
+      "placeholder": "Paste a trace ID or transaction ID",
+      "timeline": "Service timeline",
+      "audit": "Audit trail",
+      "meta": "Transaction"
+    }
+  },
+  "status": {
+    "pending": "Pending",
+    "processing": "Processing",
+    "posted": "Posted",
+    "reversed": "Reversed",
+    "rejected": "Rejected",
+    "failed": "Failed",
+    "healthy": "Healthy",
+    "degraded": "Degraded",
+    "down": "Down"
+  },
+  "common": {
+    "loading": "Loading",
+    "error": "Something went wrong",
+    "retry": "Try again",
+    "empty": "Nothing to show yet",
+    "back": "Back",
+    "next": "Next",
+    "cancel": "Cancel",
+    "signOut": "Sign out",
+    "search": "Search"
+  }
+}

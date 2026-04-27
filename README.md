@@ -441,6 +441,68 @@ Detailed walkthrough:
 
 - [demo-scenario.md](/Users/yvz.o/Desktop/projects/Geteway_Pattern/docs/architecture/demo-scenario.md)
 
+## Five-Minute Demo Flow
+
+Use this flow when presenting the project quickly:
+
+1. Start the Docker Compose runtime and show all core containers are up.
+2. Open the React client workspace and sign in through Helvetiq SSO.
+3. Create or inspect accounts, then perform a transfer from the `Move money` screen.
+4. Open Prometheus or Grafana to show the platform is observable.
+5. Switch to the React operator workspace and show `Platform health`.
+6. In the same operator screen, show `Security decisions` from the risk-service.
+7. Explain that API Gateway traffic becomes Kafka events, the Python risk-service consumes them, Redis keeps short-lived behavior features, and each request receives an explainable risk decision.
+
+## Runtime Architecture
+
+```mermaid
+flowchart LR
+  User["Client / Operator"] --> Frontend["React Frontend"]
+  Frontend --> Gateway["API Gateway"]
+  Gateway --> Identity["identity-service"]
+  Gateway --> Account["account-service"]
+  Gateway --> Transaction["transaction-service"]
+  Gateway --> Payment["payment-service"]
+  Gateway --> Ops["ops aggregation endpoint"]
+  Gateway --> Kafka["Kafka topic: api-events"]
+  Kafka --> Risk["risk-service (FastAPI)"]
+  Risk --> Redis["Redis feature store"]
+  Risk --> Decisions["allow / monitor / review"]
+  Transaction --> DomainKafka["Kafka domain events"]
+  Payment --> DomainKafka
+  DomainKafka --> Audit["audit-service"]
+  DomainKafka --> Notification["notification-service"]
+  Prometheus["Prometheus"] --> Grafana["Grafana"]
+  Gateway --> Prometheus
+  Risk --> Prometheus
+```
+
+## Security Decision Demo
+
+The operator UI reads recent risk decisions from:
+
+```text
+GET http://localhost:8091/risk/decisions?limit=8
+```
+
+Example decision:
+
+```json
+{
+  "endpoint": "/api/v1/accounts/me",
+  "riskScore": 0.30,
+  "decision": "monitor",
+  "topFactors": ["elevated_request_frequency", "rapid_repeat_request"],
+  "features": {
+    "requestCount1m": 12,
+    "failedRequestCount5m": 0,
+    "source": "redis"
+  }
+}
+```
+
+This demonstrates that the platform does not only process banking requests. It also observes API behavior, extracts real-time security features, and produces explainable risk decisions that an operator can inspect.
+
 ## Why Companies Use These Patterns
 
 ### `API Gateway`
