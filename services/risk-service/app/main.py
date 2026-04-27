@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Query
 
+from app.feature_store import build_feature_store
 from app.kafka_consumer import ApiEventConsumer
 from app.models import ApiEvent, HealthResponse, RiskEvaluation, ServiceStats
 from app.risk_engine import evaluate_event
@@ -12,7 +13,8 @@ from app.state import RiskState
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 
 state = RiskState(maxlen=settings.event_buffer_size)
-consumer = ApiEventConsumer(settings=settings, state=state)
+feature_store = build_feature_store(settings)
+consumer = ApiEventConsumer(settings=settings, state=state, feature_store=feature_store)
 
 
 @asynccontextmanager
@@ -36,13 +38,15 @@ def health() -> HealthResponse:
         status="UP",
         service=settings.service_name,
         kafkaTopic=settings.api_events_topic,
+        featureStore=feature_store.name,
         consumedEvents=state.consumed_events(),
     )
 
 
 @app.post("/risk/evaluate", response_model=RiskEvaluation)
 def risk_evaluate(event: ApiEvent) -> RiskEvaluation:
-    decision = evaluate_event(event)
+    features = feature_store.record_and_extract(event)
+    decision = evaluate_event(event, features)
     state.record(event, decision)
     return decision
 
@@ -51,6 +55,7 @@ def risk_evaluate(event: ApiEvent) -> RiskEvaluation:
 def risk_stats() -> ServiceStats:
     return ServiceStats(
         consumedEvents=state.consumed_events(),
+        featureStore=feature_store.name,
         lastEvent=state.last_event(),
         lastDecision=state.last_decision(),
     )

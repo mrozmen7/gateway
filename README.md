@@ -371,7 +371,8 @@ Why it exists:
 
 ## Risk Service
 
-The `risk-service` is a Python FastAPI service that consumes gateway API events from Kafka and produces a first-pass, explainable risk decision.
+The `risk-service` is a Python FastAPI service that consumes gateway API events from Kafka and produces an explainable risk decision.
+It uses Redis as a real-time feature store so each decision can include recent behavior, not only the current request.
 In this phase it observes and evaluates traffic only; it does not block gateway requests yet.
 
 Runtime endpoints:
@@ -405,12 +406,21 @@ The first rule-based scoring layer considers:
 - gateway response time
 - anonymous access to non-actuator endpoints
 - sensitive banking endpoints such as accounts, transactions, payments, and ops
+- request frequency in the last 1 and 5 minutes
+- failed request count in the last 5 minutes
+- endpoint diversity per user
+- distinct IP count per user
+- distinct user count per IP
+- rapid repeat requests
+- off-hours sensitive access
+
+Redis feature keys are TTL-based and intentionally short-lived. This keeps the system fast and privacy-aware for local demo purposes.
 
 Why it exists:
 
 - it separates security analysis from request routing
 - it lets Java microservices keep business ownership while Python owns risk intelligence
-- it creates a clear extension point for Redis real-time features and ML anomaly detection in later phases
+- it creates a clear extension point for ML anomaly detection and adaptive gateway response in later phases
 - it keeps decisions explainable, which matters for banking audit and compliance-aware systems
 
 ## Demo Story

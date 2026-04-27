@@ -24,6 +24,18 @@ class ApiEvent(BaseModel):
 RiskDecision = Literal["allow", "monitor", "review"]
 
 
+class RiskFeatures(BaseModel):
+    requestCount1m: int = 0
+    requestCount5m: int = 0
+    failedRequestCount5m: int = 0
+    endpointDiversity5m: int = 0
+    distinctIpCountByUser5m: int = 0
+    distinctUserCountByIp5m: int = 0
+    secondsSinceLastRequest: float | None = None
+    offHours: bool = False
+    source: str = "none"
+
+
 class RiskEvaluation(BaseModel):
     decisionId: str = Field(default_factory=lambda: str(uuid4()))
     evaluatedAt: str = Field(default_factory=lambda: datetime.now(UTC).isoformat())
@@ -36,17 +48,21 @@ class RiskEvaluation(BaseModel):
     riskScore: float
     decision: RiskDecision
     reasons: list[str]
-    source: str = "rule-based-v0"
+    topFactors: list[str] = Field(default_factory=list)
+    features: RiskFeatures = Field(default_factory=RiskFeatures)
+    source: str = "rule-based-v1"
 
 
 class HealthResponse(BaseModel):
     status: str
     service: str
     kafkaTopic: str
+    featureStore: str
     consumedEvents: int
 
 
 class ServiceStats(BaseModel):
     consumedEvents: int
+    featureStore: str
     lastEvent: ApiEvent | None
     lastDecision: RiskEvaluation | None

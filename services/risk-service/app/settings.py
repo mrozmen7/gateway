@@ -10,6 +10,8 @@ class Settings(BaseSettings):
     api_events_topic: str = Field(default="api-events", alias="API_EVENTS_TOPIC")
     kafka_group_id: str = Field(default="risk-service", alias="KAFKA_GROUP_ID")
     event_buffer_size: int = Field(default=100, alias="RISK_EVENT_BUFFER_SIZE")
+    redis_url: str = Field(default="redis://localhost:6379/0", alias="REDIS_URL")
+    feature_window_seconds: int = Field(default=300, alias="RISK_FEATURE_WINDOW_SECONDS")
 
 
 settings = Settings()

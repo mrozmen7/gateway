@@ -74,6 +74,14 @@ services:
     ports:
       - "9092:9092"
 
+  redis:
+    image: redis:7.4-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+
   keycloak:
     image: quay.io/keycloak/keycloak:26.0.7
     command: ["start-dev", "--import-realm"]
@@ -287,12 +295,15 @@ services:
     build: ../../services/risk-service
     depends_on:
       - kafka
+      - redis
     environment:
       RISK_SERVICE_NAME: risk-service
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       API_EVENTS_TOPIC: api-events
       KAFKA_GROUP_ID: risk-service
       RISK_EVENT_BUFFER_SIZE: 200
+      REDIS_URL: redis://redis:6379/0
+      RISK_FEATURE_WINDOW_SECONDS: 300
     ports:
       - "8091:8091"
 
@@ -334,6 +345,7 @@ volumes:
   audit-postgres-data:
   notification-postgres-data:
   kafka-data:
+  redis-data:
   prometheus-data:
   grafana-data:
   tempo-data:
