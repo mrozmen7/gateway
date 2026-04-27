@@ -1,5 +1,5 @@
 import { type ReactNode } from 'react';
-import { Link } from '@tanstack/react-router';
+import { Link, useNavigate } from '@tanstack/react-router';
 import { ArrowLeftRight, LogOut, Sparkles, Activity, Radar } from 'lucide-react';
 import { cn } from '@shared/lib/cn';
 import { useSession } from '@app/session.store';
@@ -29,6 +29,7 @@ const opsNav: readonly NavItem[] = [
 export const AppShell = ({ persona, children }: AppShellProps) => {
   const session = useSession((s) => s.session);
   const signOut = useSession((s) => s.signOut);
+  const navigate = useNavigate();
   const nav = persona === 'client' ? clientNav : opsNav;
 
   return (
@@ -93,8 +94,9 @@ export const AppShell = ({ persona, children }: AppShellProps) => {
         <div className="rule-t p-2.5">
           <button
             type="button"
-            onClick={() => {
-              void signOut();
+            onClick={async () => {
+              await signOut();
+              await navigate({ to: '/login', replace: true });
             }}
             className={cn(
               'w-full flex items-center gap-3 h-8 px-3 rounded-sm text-sm',

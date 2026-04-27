@@ -21,6 +21,8 @@ export const beginOidcLogin = async (): Promise<void> => {
   authorizeUrl.searchParams.set('state', state);
   authorizeUrl.searchParams.set('code_challenge', challenge);
   authorizeUrl.searchParams.set('code_challenge_method', 'S256');
+  // Demo-friendly: after signing out, force Keycloak to ask for credentials again.
+  authorizeUrl.searchParams.set('prompt', 'login');
 
   window.location.assign(authorizeUrl.toString());
 };
