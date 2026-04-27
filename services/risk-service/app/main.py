@@ -2,6 +2,7 @@ import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Query
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.feature_store import build_feature_store
 from app.kafka_consumer import ApiEventConsumer
@@ -29,6 +30,14 @@ app = FastAPI(
     version="0.1.0",
     description="Consumes gateway API events and produces explainable first-pass risk evaluations.",
     lifespan=lifespan,
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.allowed_origins(),
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["*"],
 )
 
 

@@ -4,20 +4,26 @@ import { ArrowUpRight } from 'lucide-react';
 import { opsLayoutRoute } from '@app/routes/_ops';
 import { PageHeader, SectionHeader } from '@shared/ui/PageHeader';
 import { HealthDot, Timestamp } from '@shared/ui/primitives';
-import { Skeleton } from '@shared/ui/States';
+import { EmptyState, ErrorState, Skeleton } from '@shared/ui/States';
 import { services } from '@services/index';
 import { unwrap } from '@shared/lib/result';
 import type { RiskDecisionEntry, ServiceStatus } from '@entities/audit/model';
 import { cn } from '@shared/lib/cn';
 
 const PlatformHealthPage = () => {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['ops', 'platform-health'],
     queryFn: async () => unwrap(await services.audit.platformHealth()),
     refetchInterval: 10_000,
   });
 
-  const { data: riskDecisions, isLoading: riskLoading } = useQuery({
+  const {
+    data: riskDecisions,
+    isLoading: riskLoading,
+    isError: riskIsError,
+    error: riskError,
+    refetch: refetchRisk,
+  } = useQuery({
     queryKey: ['ops', 'risk-decisions'],
     queryFn: async () => unwrap(await services.audit.riskDecisions(8)),
     refetchInterval: 10_000,
@@ -79,10 +85,23 @@ const PlatformHealthPage = () => {
             </div>
           ))}
         </div>
-      ) : (
+      ) : isError ? (
+        <ErrorState
+          className="rule-t rule-b"
+          title="Platform health unavailable"
+          description={errorMessage(error)}
+          onRetry={() => void refetch()}
+        />
+      ) : data && data.length > 0 ? (
         <div className="rule-t">
-          {data?.map((svc) => <ServiceRow key={svc.service} svc={svc} />)}
+          {data.map((svc) => <ServiceRow key={svc.service} svc={svc} />)}
         </div>
+      ) : (
+        <EmptyState
+          className="rule-t rule-b"
+          title="No service health yet"
+          description="The operator API returned no service rows."
+        />
       )}
 
       <SectionHeader title="Security decisions" className="mt-12" />
@@ -95,15 +114,36 @@ const PlatformHealthPage = () => {
             </div>
           ))}
         </div>
-      ) : (
+      ) : riskIsError ? (
+        <ErrorState
+          className="rule-t rule-b"
+          title="Security decisions unavailable"
+          description={errorMessage(riskError)}
+          onRetry={() => void refetchRisk()}
+        />
+      ) : riskDecisions && riskDecisions.length > 0 ? (
         <div className="rule-t">
-          {riskDecisions?.map((decision) => (
+          {riskDecisions.map((decision) => (
             <RiskDecisionRow key={decision.decisionId} decision={decision} />
           ))}
         </div>
+      ) : (
+        <EmptyState
+          className="rule-t rule-b"
+          title="No security decisions yet"
+          description="Generate traffic through the API Gateway to publish api-events and let risk-service evaluate them."
+        />
       )}
     </>
   );
+};
+
+const errorMessage = (error: unknown): string => {
+  if (error && typeof error === 'object' && 'message' in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === 'string') return message;
+  }
+  return 'The request failed. Check authentication, service availability, or CORS configuration.';
 };
 
 const ServiceRow = ({ svc }: { svc: ServiceStatus }) => (
