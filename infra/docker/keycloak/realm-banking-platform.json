@@ -1,0 +1,99 @@
+{
+  "realm": "banking-platform",
+  "enabled": true,
+  "displayName": "Banking Platform",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": false,
+  "roles": {
+    "realm": [
+      { "name": "CUSTOMER", "description": "Banking customer role" },
+      { "name": "OPS", "description": "Operations workspace role" }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "helvetiq-frontend",
+      "name": "Helvetiq React Frontend",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "implicitFlowEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [
+        "http://localhost:5173/auth/callback",
+        "http://127.0.0.1:5173/auth/callback"
+      ],
+      "webOrigins": [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173"
+      ],
+      "protocol": "openid-connect",
+      "protocolMappers": [
+        {
+          "name": "bank_user_id",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.attribute": "bank_user_id",
+            "claim.name": "bank_user_id",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "yavuz",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "yavuz@alpbank.ch",
+      "firstName": "Yavuz",
+      "lastName": "Ozmen",
+      "attributes": {
+        "bank_user_id": ["cust-1002"]
+      },
+      "credentials": [
+        { "type": "password", "value": "gateway!", "temporary": false }
+      ],
+      "realmRoles": ["CUSTOMER"]
+    },
+    {
+      "username": "fatih",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "fatih@alpbank.ch",
+      "firstName": "Fatih",
+      "lastName": "Demir",
+      "attributes": {
+        "bank_user_id": ["cust-1003"]
+      },
+      "credentials": [
+        { "type": "password", "value": "gateway123!", "temporary": false }
+      ],
+      "realmRoles": ["CUSTOMER"]
+    },
+    {
+      "username": "marc.steiner",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "marc.steiner@alpbank.ch",
+      "firstName": "Marc",
+      "lastName": "Steiner",
+      "attributes": {
+        "bank_user_id": ["ops-2001"]
+      },
+      "credentials": [
+        { "type": "password", "value": "OpsPass123", "temporary": false }
+      ],
+      "realmRoles": ["OPS"]
+    }
+  ]
+}

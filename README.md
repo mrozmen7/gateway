@@ -334,7 +334,7 @@ If Prometheus or Kafka is temporarily unavailable, the endpoint still answers wi
 ## Security Event Stream
 
 The `api-gateway` publishes one API security event for every completed gateway request.
-Events are sent to Kafka topic `api-events` and form the data foundation for the upcoming risk-service.
+Events are sent to Kafka topic `api-events` and form the data foundation for the risk-service.
 
 Topic:
 
@@ -366,8 +366,52 @@ Why it exists:
 
 - it turns live API traffic into a security data stream
 - it keeps request identity, endpoint, status, latency, and correlation metadata together
-- it gives the future risk-service a stable event contract
+- it gives the risk-service a stable event contract
 - it supports auditability without putting risk logic inside the gateway
+
+## Risk Service
+
+The `risk-service` is a Python FastAPI service that consumes gateway API events from Kafka and produces a first-pass, explainable risk decision.
+In this phase it observes and evaluates traffic only; it does not block gateway requests yet.
+
+Runtime endpoints:
+
+```text
+GET  /health
+GET  /risk/stats
+GET  /risk/decisions?limit=25
+POST /risk/evaluate
+```
+
+Local URLs:
+
+```text
+http://localhost:8091/health
+http://localhost:8091/risk/stats
+http://localhost:8091/risk/decisions?limit=10
+```
+
+Initial decision levels:
+
+```text
+allow   -> normal request
+monitor -> elevated but not critical
+review  -> suspicious enough for operator review
+```
+
+The first rule-based scoring layer considers:
+
+- HTTP status code
+- gateway response time
+- anonymous access to non-actuator endpoints
+- sensitive banking endpoints such as accounts, transactions, payments, and ops
+
+Why it exists:
+
+- it separates security analysis from request routing
+- it lets Java microservices keep business ownership while Python owns risk intelligence
+- it creates a clear extension point for Redis real-time features and ML anomaly detection in later phases
+- it keeps decisions explainable, which matters for banking audit and compliance-aware systems
 
 ## Demo Story
 
