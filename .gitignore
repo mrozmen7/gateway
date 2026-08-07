@@ -4,3 +4,4 @@
 target/
 *.iml
 services/*/data/
+infra/docker/logs/
