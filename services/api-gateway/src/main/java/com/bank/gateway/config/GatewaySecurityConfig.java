@@ -1,11 +1,12 @@
 package com.bank.gateway.config;
 
 import com.bank.gateway.security.CorrelationIdFilter;
-import com.bank.gateway.security.OidcJwtAuthenticationConverter;
+import com.bank.gateway.security.GatewayJwtAuthenticationFilter;
 import com.bank.gateway.securityevents.ApiSecurityEventFilter;
 import jakarta.servlet.DispatcherType;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.MediaType;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
@@ -24,12 +25,21 @@ public class GatewaySecurityConfig {
             HttpSecurity httpSecurity,
             CorrelationIdFilter correlationIdFilter,
             ApiSecurityEventFilter apiSecurityEventFilter,
-            OidcJwtAuthenticationConverter oidcJwtAuthenticationConverter
+            GatewayJwtAuthenticationFilter gatewayJwtAuthenticationFilter
     ) throws Exception {
         httpSecurity
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .exceptionHandling(exceptionHandling -> exceptionHandling
+                        .authenticationEntryPoint((request, response, authException) -> {
+                            response.setStatus(401);
+                            response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+                            response.getWriter().write("""
+                                    {"error":"authentication_required","message":"Send a valid bearer token issued by identity-service."}
+                                    """);
+                        })
+                )
                 .authorizeHttpRequests(authorize -> authorize
                         .dispatcherTypeMatchers(DispatcherType.FORWARD, DispatcherType.ERROR, DispatcherType.ASYNC).permitAll()
                         .requestMatchers(
@@ -45,9 +55,8 @@ public class GatewaySecurityConfig {
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(correlationIdFilter, AnonymousAuthenticationFilter.class)
-                .addFilterAfter(apiSecurityEventFilter, AnonymousAuthenticationFilter.class)
-                .oauth2ResourceServer(oauth2 -> oauth2
-                        .jwt(jwt -> jwt.jwtAuthenticationConverter(oidcJwtAuthenticationConverter)));
+                .addFilterBefore(gatewayJwtAuthenticationFilter, AnonymousAuthenticationFilter.class)
+                .addFilterAfter(apiSecurityEventFilter, AnonymousAuthenticationFilter.class);
 
         return httpSecurity.build();
     }
