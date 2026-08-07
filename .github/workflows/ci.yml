@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - api-gateway
+          - identity-service
+          - customer-service
+          - account-service
+          - transaction-service
+          - payment-service
+          - audit-service
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Verify ${{ matrix.service }}
+        working-directory: services/${{ matrix.service }}
+        run: bash mvnw -B verify
+
+  risk-service:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        working-directory: services/risk-service
+        run: pip install -r requirements.txt pytest
+      - name: Run tests
+        working-directory: services/risk-service
+        run: PYTHONPATH=. python -m pytest tests -q
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Enable pnpm
+        run: corepack enable pnpm
+      - name: Install dependencies
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+      - name: Typecheck and build
+        working-directory: frontend
+        run: |
+          pnpm typecheck
+          pnpm build
