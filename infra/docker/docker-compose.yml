@@ -1,59 +1,4 @@
 services:
-  postgres-account:
-    image: postgres:17
-    environment:
-      POSTGRES_DB: accountdb
-      POSTGRES_USER: account
-      POSTGRES_PASSWORD: account
-    ports:
-      - "54321:5432"
-    volumes:
-      - account-postgres-data:/var/lib/postgresql/data
-
-  postgres-transaction:
-    image: postgres:17
-    environment:
-      POSTGRES_DB: transactiondb
-      POSTGRES_USER: transaction
-      POSTGRES_PASSWORD: transaction
-    ports:
-      - "54322:5432"
-    volumes:
-      - transaction-postgres-data:/var/lib/postgresql/data
-
-  postgres-payment:
-    image: postgres:17
-    environment:
-      POSTGRES_DB: paymentdb
-      POSTGRES_USER: payment
-      POSTGRES_PASSWORD: payment
-    ports:
-      - "54323:5432"
-    volumes:
-      - payment-postgres-data:/var/lib/postgresql/data
-
-  postgres-audit:
-    image: postgres:17
-    environment:
-      POSTGRES_DB: auditdb
-      POSTGRES_USER: audit
-      POSTGRES_PASSWORD: audit
-    ports:
-      - "54324:5432"
-    volumes:
-      - audit-postgres-data:/var/lib/postgresql/data
-
-  postgres-notification:
-    image: postgres:17
-    environment:
-      POSTGRES_DB: notificationdb
-      POSTGRES_USER: notification
-      POSTGRES_PASSWORD: notification
-    ports:
-      - "54325:5432"
-    volumes:
-      - notification-postgres-data:/var/lib/postgresql/data
-
   kafka:
     image: confluentinc/cp-kafka:7.7.1
     environment:
@@ -81,17 +26,6 @@ services:
       - "6379:6379"
     volumes:
       - redis-data:/data
-
-  keycloak:
-    image: quay.io/keycloak/keycloak:26.0.7
-    command: ["start-dev", "--import-realm"]
-    environment:
-      KC_BOOTSTRAP_ADMIN_USERNAME: admin
-      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
-    volumes:
-      - ./keycloak/realm-banking-platform.json:/opt/keycloak/data/import/realm-banking-platform.json:ro
-    ports:
-      - "8089:8080"
 
   tempo:
     image: grafana/tempo:2.8.2
@@ -140,156 +74,49 @@ services:
 
   identity-service:
     build: ../../services/identity-service
-    depends_on:
-      - keycloak
-    environment:
-      SERVER_PORT: 8081
-      OIDC_ISSUER_URI: http://127.0.0.1:8089/realms/banking-platform
-      OIDC_JWK_SET_URI: http://keycloak:8080/realms/banking-platform/protocol/openid-connect/certs
-      OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4318/v1/traces
-      LOG_FILE_PATH: /var/log/banking/identity-service.log
-    volumes:
-      - ./logs:/var/log/banking
     ports:
       - "8081:8081"
 
   customer-service:
     build: ../../services/customer-service
-    depends_on:
-      - keycloak
-    environment:
-      SERVER_PORT: 8083
-      OIDC_ISSUER_URI: http://127.0.0.1:8089/realms/banking-platform
-      OIDC_JWK_SET_URI: http://keycloak:8080/realms/banking-platform/protocol/openid-connect/certs
-      BANK_INTERNAL_API_KEY: phase5-internal-service-key-change-in-prod-2026
-      OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4318/v1/traces
-      LOG_FILE_PATH: /var/log/banking/customer-service.log
-    volumes:
-      - ./logs:/var/log/banking
     ports:
       - "8083:8083"
 
   account-service:
     build: ../../services/account-service
-    depends_on:
-      - postgres-account
-      - keycloak
-    environment:
-      SERVER_PORT: 8082
-      OIDC_ISSUER_URI: http://127.0.0.1:8089/realms/banking-platform
-      OIDC_JWK_SET_URI: http://keycloak:8080/realms/banking-platform/protocol/openid-connect/certs
-      DB_URL: jdbc:postgresql://postgres-account:5432/accountdb
-      DB_DRIVER_CLASS_NAME: org.postgresql.Driver
-      DB_USERNAME: account
-      DB_PASSWORD: account
-      BANK_INTERNAL_API_KEY: phase5-internal-service-key-change-in-prod-2026
-      OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4318/v1/traces
-      LOG_FILE_PATH: /var/log/banking/account-service.log
-    volumes:
-      - ./logs:/var/log/banking
     ports:
       - "8082:8082"
 
   transaction-service:
     build: ../../services/transaction-service
     depends_on:
-      - postgres-transaction
-      - kafka
-      - keycloak
       - account-service
       - customer-service
+      - audit-service
     environment:
-      SERVER_PORT: 8084
-      OIDC_ISSUER_URI: http://127.0.0.1:8089/realms/banking-platform
-      OIDC_JWK_SET_URI: http://keycloak:8080/realms/banking-platform/protocol/openid-connect/certs
-      DB_URL: jdbc:postgresql://postgres-transaction:5432/transactiondb
-      DB_DRIVER_CLASS_NAME: org.postgresql.Driver
-      DB_USERNAME: transaction
-      DB_PASSWORD: transaction
-      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       ACCOUNT_SERVICE_URL: http://account-service:8082
       CUSTOMER_SERVICE_URL: http://customer-service:8083
-      BANK_INTERNAL_API_KEY: phase5-internal-service-key-change-in-prod-2026
-      OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4318/v1/traces
-      LOG_FILE_PATH: /var/log/banking/transaction-service.log
-    volumes:
-      - ./logs:/var/log/banking
+      AUDIT_SERVICE_URL: http://audit-service:8086
     ports:
       - "8084:8084"
 
   payment-service:
     build: ../../services/payment-service
     depends_on:
-      - postgres-payment
-      - kafka
-      - keycloak
       - account-service
       - customer-service
+      - audit-service
     environment:
-      SERVER_PORT: 8085
-      OIDC_ISSUER_URI: http://127.0.0.1:8089/realms/banking-platform
-      OIDC_JWK_SET_URI: http://keycloak:8080/realms/banking-platform/protocol/openid-connect/certs
-      DB_URL: jdbc:postgresql://postgres-payment:5432/paymentdb
-      DB_DRIVER_CLASS_NAME: org.postgresql.Driver
-      DB_USERNAME: payment
-      DB_PASSWORD: payment
-      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       ACCOUNT_SERVICE_URL: http://account-service:8082
       CUSTOMER_SERVICE_URL: http://customer-service:8083
-      BANK_INTERNAL_API_KEY: phase5-internal-service-key-change-in-prod-2026
-      OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4318/v1/traces
-      LOG_FILE_PATH: /var/log/banking/payment-service.log
-    volumes:
-      - ./logs:/var/log/banking
+      AUDIT_SERVICE_URL: http://audit-service:8086
     ports:
       - "8085:8085"
 
   audit-service:
     build: ../../services/audit-service
-    depends_on:
-      - postgres-audit
-      - kafka
-      - keycloak
-    environment:
-      SERVER_PORT: 8086
-      OIDC_ISSUER_URI: http://127.0.0.1:8089/realms/banking-platform
-      OIDC_JWK_SET_URI: http://keycloak:8080/realms/banking-platform/protocol/openid-connect/certs
-      DB_URL: jdbc:postgresql://postgres-audit:5432/auditdb
-      DB_DRIVER_CLASS_NAME: org.postgresql.Driver
-      DB_USERNAME: audit
-      DB_PASSWORD: audit
-      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      KAFKA_GROUP_ID: audit-service
-      BANK_INTERNAL_API_KEY: phase5-internal-service-key-change-in-prod-2026
-      OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4318/v1/traces
-      LOG_FILE_PATH: /var/log/banking/audit-service.log
-    volumes:
-      - ./logs:/var/log/banking
     ports:
       - "8086:8086"
-
-  notification-service:
-    build: ../../services/notification-service
-    depends_on:
-      - postgres-notification
-      - kafka
-      - keycloak
-    environment:
-      SERVER_PORT: 8087
-      OIDC_ISSUER_URI: http://127.0.0.1:8089/realms/banking-platform
-      OIDC_JWK_SET_URI: http://keycloak:8080/realms/banking-platform/protocol/openid-connect/certs
-      DB_URL: jdbc:postgresql://postgres-notification:5432/notificationdb
-      DB_DRIVER_CLASS_NAME: org.postgresql.Driver
-      DB_USERNAME: notification
-      DB_PASSWORD: notification
-      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      KAFKA_GROUP_ID: notification-service
-      OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4318/v1/traces
-      LOG_FILE_PATH: /var/log/banking/notification-service.log
-    volumes:
-      - ./logs:/var/log/banking
-    ports:
-      - "8087:8087"
 
   risk-service:
     build: ../../services/risk-service
@@ -310,25 +137,20 @@ services:
   api-gateway:
     build: ../../services/api-gateway
     depends_on:
-      - keycloak
       - identity-service
       - account-service
       - customer-service
       - transaction-service
       - payment-service
       - audit-service
-      - notification-service
     environment:
       SERVER_PORT: 8080
-      OIDC_ISSUER_URI: http://127.0.0.1:8089/realms/banking-platform
-      OIDC_JWK_SET_URI: http://keycloak:8080/realms/banking-platform/protocol/openid-connect/certs
       IDENTITY_SERVICE_URL: http://identity-service:8081
       ACCOUNT_SERVICE_URL: http://account-service:8082
       CUSTOMER_SERVICE_URL: http://customer-service:8083
       TRANSACTION_SERVICE_URL: http://transaction-service:8084
       PAYMENT_SERVICE_URL: http://payment-service:8085
       AUDIT_SERVICE_URL: http://audit-service:8086
-      NOTIFICATION_SERVICE_URL: http://notification-service:8087
       PROMETHEUS_URL: http://prometheus:9090
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4318/v1/traces
@@ -339,12 +161,6 @@ services:
       - "8090:8080"
 
 volumes:
-  account-postgres-data:
-  transaction-postgres-data:
-  payment-postgres-data:
-  audit-postgres-data:
-  notification-postgres-data:
-  kafka-data:
   redis-data:
   prometheus-data:
   grafana-data:
