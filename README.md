@@ -1,12 +1,10 @@
 # Gateway Pattern Banking Platform
 
-Production-style digital banking platform built to teach how a serious microservice system is designed, secured, observed, tested, and explained.
+Production-style digital banking platform for demonstrating how a serious microservice system is designed, secured, observed, and tested.
 
-## Why This Repository Exists
+## System Goals
 
-Most gateway and microservice tutorials stop at CRUD and a reverse proxy. Real companies do not.
-
-This project is intentionally shaped like a small banking platform so we can learn:
+The platform is intentionally shaped as a small banking system to demonstrate:
 
 - where an `API Gateway` should help and where it should stay out of business logic
 - how service boundaries protect ownership and reduce chaos
@@ -14,7 +12,7 @@ This project is intentionally shaped like a small banking platform so we can lea
 - how synchronous business calls and asynchronous event streams work together
 - how observability, CI, and smoke validation turn code into an operable system
 
-The goal is not to build a toy demo. The goal is to build a reference project that a hiring manager, senior engineer, or platform team can take seriously.
+The repository documents the implemented platform and its known production gaps.
 
 ## What The Platform Does Today
 
@@ -359,7 +357,7 @@ PYTHONPATH=. python scripts/train_anomaly_model.py
 
 This is intentionally described as AI-augmented anomaly detection, not a production fraud model. The output remains audit-friendly because each decision includes `ruleScore`, `mlScore`, `modelVersion`, `reasons`, and `topFactors`.
 
-Redis feature keys are TTL-based and intentionally short-lived. This keeps the system fast and privacy-aware for local demo purposes.
+Redis feature keys are TTL-based and intentionally short-lived. This keeps the local runtime fast and privacy-aware.
 
 Why it exists:
 
@@ -369,9 +367,9 @@ Why it exists:
 - it creates a clear extension point for adaptive gateway response in later phases
 - it keeps decisions explainable, which matters for banking audit and compliance-aware systems
 
-## Demo Story
+## End-to-End Validation Scenario
 
-The strongest demo path is:
+Use this scenario to validate the primary banking flow:
 
 1. login as `yavuz`
 2. create Yavuz account
@@ -388,29 +386,11 @@ The strongest demo path is:
 `identity-service` issues HMAC-signed JWTs (HS256) after username/password login.
 The gateway and every downstream service validate the same token with a shared secret and map the `role` claim to authorization decisions.
 
-This is a deliberate teaching-grade model:
+This is an intentionally limited local-runtime model:
 
-- it keeps the token flow visible and easy to debug
-- it avoids hiding the learning goal behind an external identity provider
+- it keeps the token flow straightforward and easy to debug
+- it avoids introducing an external identity provider before an OIDC integration is available
 - the trade-offs (shared-secret distribution, no key rotation, no refresh tokens) are documented in `docs/adr/ADR-004-hmac-jwt-over-keycloak.md` and `docs/security/security-foundation.md`
-
-## Why Companies Use These Patterns
-
-### `API Gateway`
-
-Companies use a gateway to centralize traffic entry, enforce shared policy, and keep client-facing routing simple.
-
-### `Database per Service`
-
-Companies use service-owned databases to protect ownership and reduce accidental cross-team coupling. This platform models that boundary at the service level; the PostgreSQL persistence layer is a roadmap phase.
-
-### `Idempotency`
-
-Companies use idempotency to stop duplicate transfers or payments when users double-click or clients retry after timeouts. This platform implements it DB-backed in `transaction-service` and `payment-service`.
-
-### `Observability`
-
-Companies use metrics, logs, and traces together because production incidents are rarely solved from one signal alone.
 
 ## Repository Structure
 
@@ -436,40 +416,6 @@ gateway/
     risk-service/      Python FastAPI + Kafka consumer + Redis
   specs/               phase acceptance criteria
 ```
-
-## Key Terms
-
-### `API Gateway`
-
-The front door of the system. Clients talk to this first.
-
-### `Microservice`
-
-A service that owns one clear responsibility and can evolve independently.
-
-### `Service Boundary`
-
-The explicit line that says what a service owns and what it does not own.
-
-### `Authentication`
-
-Verifying who the caller is.
-
-### `Authorization`
-
-Checking what an authenticated caller is allowed to do.
-
-### `Audit`
-
-Keeping trustworthy records of critical actions.
-
-### `Idempotency`
-
-Making the same request safe to repeat without duplicating money movement.
-
-### `Observability`
-
-Understanding a running system through metrics, logs, and traces.
 
 ## Engineering Rules
 

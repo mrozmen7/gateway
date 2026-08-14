@@ -1,8 +1,8 @@
-# Phase 5 Service-to-Service Communication
+# Synchronous Service-to-Service Communication
 
 ## Purpose
 
-This document explains the first real synchronous orchestration flow in the banking platform.
+This document describes the initial synchronous orchestration flow in the banking platform.
 
 Phase 4 proved that multiple protected business services could answer meaningful requests through the gateway.
 
@@ -11,9 +11,9 @@ Phase 5 goes one level deeper:
 - `transaction-service` now calls downstream services before creating a transfer
 - `payment-service` now calls downstream services before creating a payment
 - `audit-service` now accepts internal audit writes from other services
-- `account-service` now lets the authenticated user create additional test accounts for local training
+- `account-service` lets authenticated users create additional accounts for local development and testing
 
-## Main Architectural Lesson
+## Architecture
 
 In microservice systems, a service often needs information owned by another service.
 
@@ -95,10 +95,10 @@ Passing the same `X-Correlation-Id` through all services so one user request can
 ### `Internal API`
 A backend-only API meant for service-to-service use, not for direct public clients.
 
-## Why This Phase Matters
+## Operational Impact
 
 This is the first phase where the platform behaves like a distributed banking system instead of a set of isolated APIs.
 
 That is a major milestone because most production complexity in microservices comes from the space between services, not only from the code inside each service.
 
-It also gives us a better teaching setup: we are no longer limited to only seeded accounts, so we can create fresh accounts in Swagger and verify how downstream ownership checks behave in later transfer exercises.
+The platform is no longer limited to seeded accounts; new accounts can be created through Swagger to validate downstream ownership checks.

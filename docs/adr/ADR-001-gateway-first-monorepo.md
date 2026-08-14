@@ -8,14 +8,12 @@ Accepted
 
 ## Context
 
-The project is intended to teach production-style API Gateway and Microservices in a banking context.
-
-The learner is new to microservices, so the architecture must be:
+The platform demonstrates an API Gateway and microservices in a banking context. Its initial architecture must be:
 
 - realistic
 - structured
-- teachable
-- simple enough to evolve step by step
+- operationally manageable
+- simple enough to evolve incrementally
 
 We need a project shape that shows multiple services clearly without creating unnecessary operational chaos at the very beginning.
 
@@ -31,7 +29,7 @@ We will start with:
 ## Why This Decision Was Chosen
 
 ### `Monorepo`
-Using one repository makes it easier to learn and reason about the whole platform.
+Using one repository keeps the platform easier to operate and reason about as a single deliverable.
 
 Benefits:
 
@@ -41,26 +39,26 @@ Benefits:
 - easier comparison across services
 
 ### `Gateway-first`
-The project is specifically about learning API Gateway and Microservices together.
+The platform uses an API Gateway as its external entry point.
 
 Benefits:
 
-- request flow becomes visible from day one
-- security and routing can be taught early
+- request flow is explicit from the first deployment
+- security and routing have a clear ownership boundary
 - cross-cutting concerns have a natural home
 
 ## Consequences
 
 Positive:
 
-- clean training-oriented foundation
+- clean initial foundation
 - realistic system boundaries
 - easier to add Docker, docs, and CI later
 
 Trade-offs:
 
 - not fully production-complete yet
-- monorepo is easier for learning, but some large organizations prefer multi-repo
+- some large organizations prefer multi-repo once team and deployment boundaries justify it
 - service independence is conceptual first, operational later
 
 ## Rejected Alternatives
@@ -69,7 +67,7 @@ Trade-offs:
 Rejected because it hides gateway and service boundaries too much.
 
 ### Full multi-repo from day one
-Rejected because it would add overhead before the learner understands the system.
+Rejected because it would add operational overhead before team and deployment boundaries justify it.
 
 ### Start without a gateway
-Rejected because the educational goal is explicitly gateway-centered.
+Rejected because the platform requires a single external policy and routing boundary.

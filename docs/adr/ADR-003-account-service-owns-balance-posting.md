@@ -5,7 +5,7 @@ Accepted
 
 ## Context
 
-The platform started as a gateway-first training system where services called each other for verification and orchestration.
+The platform started with gateway-first service-to-service verification and orchestration.
 
 At that stage:
 - transfers were recorded in `transaction-service`
@@ -46,8 +46,7 @@ As a result:
 
 ## Notes
 
-This is the correct direction for a banking training platform.
-In a more advanced design, we may later separate:
+This establishes the correct ownership boundary for the platform. A future design may separate:
 - customer-facing available balance
 - immutable ledger postings
 - settlement and reconciliation events

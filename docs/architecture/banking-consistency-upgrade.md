@@ -1,6 +1,6 @@
 # Banking Consistency Upgrade
 
-This document captures the first production-oriented upgrade of the training platform after the initial gateway and service-to-service communication phases.
+This document captures the first production-oriented upgrade after the initial gateway and service-to-service communication stages.
 
 ## What changed
 
@@ -23,7 +23,7 @@ This document captures the first production-oriented upgrade of the training pla
 ### 4. Idempotency keys
 - `transaction-service` and `payment-service` accept `Idempotency-Key`.
 - Repeating the same key for the same user now returns the original result instead of creating duplicate money movement.
-- A local in-process monitor was added on top of the persistent idempotency table to protect the single-instance training environment against concurrent duplicate requests.
+- A local in-process monitor was added on top of the persistent idempotency table to protect the single-instance runtime against concurrent duplicate requests.
 
 ### 5. Persistent storage
 - `account-service`, `transaction-service`, and `payment-service` now use file-based `H2` databases.
@@ -31,7 +31,7 @@ This document captures the first production-oriented upgrade of the training pla
 
 ## Why this matters
 
-Before this upgrade the platform was useful for learning routing and service boundaries, but money movement was still mostly a logical demo.
+Before this upgrade, routing and service boundaries existed but money movement was still mostly a logical workflow.
 
 After this upgrade the platform more closely reflects real banking concerns:
 - the target account must exist
@@ -42,7 +42,7 @@ After this upgrade the platform more closely reflects real banking concerns:
 
 ## Current trade-offs
 
-This is still an educational system, so some production-grade concerns remain intentionally simplified:
+The current implementation deliberately simplifies some production-grade concerns:
 - no external beneficiary validation beyond internal IBAN ownership
 - no durable distributed lock for idempotency across multiple service replicas
 - no event-driven posting/outbox yet

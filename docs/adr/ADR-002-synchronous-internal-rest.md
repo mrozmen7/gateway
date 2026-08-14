@@ -8,7 +8,7 @@ Accepted
 
 Phase 4 proved public business APIs through the gateway, but the services were still mostly isolated.
 
-To teach real microservice behavior, we need at least one phase where business services call each other directly.
+The platform needs a direct service-to-service integration path for business flows before asynchronous integration is introduced.
 
 The question was:
 
@@ -27,7 +27,7 @@ Specifically:
 
 ## Why
 
-- the flow stays easy to reason about for teaching
+- the flow stays explicit and operable during the initial integration stage
 - the runtime shape matches real microservice orchestration
 - we can demonstrate downstream dependency risk clearly
 - we delay Kafka until the next architectural phase on purpose
@@ -44,7 +44,7 @@ Negative:
 
 - tighter runtime coupling than event-driven integration
 - business success currently depends on synchronous audit write success
-- internal API key trust is only a teaching-grade model, not a full production trust strategy
+- shared internal API key trust is a transitional model, not a complete production trust strategy
 
 ## Follow-up
 

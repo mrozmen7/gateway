@@ -1,4 +1,4 @@
-# ADR-004 - HMAC JWT over Keycloak for the Teaching Phase
+# ADR-004 - HMAC JWT over Keycloak for the Current Runtime
 
 ## Status
 
@@ -16,7 +16,7 @@ Two authentication sources of truth is worse than one simple one: it breaks at r
 
 ## Decision
 
-For the teaching phase we keep exactly one token mechanism:
+For the current runtime we keep exactly one token mechanism:
 
 - `identity-service` issues HMAC-signed JWTs (HS256) with claims `sub`, `preferred_username`, `role`, `jti`
 - the gateway and every downstream service validate the token with the same shared secret
@@ -25,7 +25,7 @@ For the teaching phase we keep exactly one token mechanism:
 ## Why
 
 - one authentication model that actually works end to end
-- the token flow stays visible and debuggable, which serves the learning goal
+- the token flow stays visible and debuggable during local operation
 - removing unused infrastructure is better engineering than carrying it "for later"
 - a future OIDC migration is a cleaner story when it starts from one working mechanism, not from two broken ones
 

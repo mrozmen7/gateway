@@ -4,13 +4,13 @@
 
 ## Project Overview
 
-This repository contains a banking platform built to teach API Gateway and Microservices with production-style engineering discipline.
+This repository contains a production-style banking platform that demonstrates API Gateway and microservice architecture with explicit engineering discipline.
 
 The platform is intentionally structured to be:
 
-- realistic enough for banking-style architecture discussions
-- simple enough to learn step by step
-- documented enough to reason about like a real engineering team
+- realistic enough for banking-style architecture work
+- modular enough to evolve independently by service
+- documented enough to support implementation and operations
 
 ## Current Architecture Direction
 
@@ -76,14 +76,3 @@ Services must not absorb each other's responsibilities casually.
 - prefer explicit structure over magic
 - document why a decision was taken, not only what was done
 - treat observability and audit as first-class concerns
-
-## Learning Rules
-
-This project is also a teaching project.
-
-That means:
-
-- concepts should be explained clearly
-- terms should be introduced with their meanings
-- we should build in phases, not by random coding
-- every phase should have a clear outcome
